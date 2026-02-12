@@ -1,0 +1,31 @@
+# Core dependencies
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+pyyaml>=6.0
+
+# Data processing
+rapidfuzz>=3.0.0
+usaddress>=0.5.10
+chardet>=5.0.0
+
+# AI/LLM integration
+openai>=1.0.0
+anthropic>=0.8.0
+tiktoken>=0.5.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+
+# Utilities
+structlog>=23.0.0
+python-dateutil>=2.8.0
+tenacity>=8.2.0
