@@ -6,7 +6,6 @@ coordinating extraction, transformation, and loading of facility lead data.
 """
 
 import argparse
-import logging
 import os
 import sys
 from datetime import datetime
@@ -379,7 +378,7 @@ def main():
     args = parser.parse_args()
 
     # Configure logging
-    configure_logging(log_level=args.log_level)
+    configure_logging(log_level=args.log_level, log_format="simple")
 
     # Create pipeline
     pipeline = ETLPipeline(

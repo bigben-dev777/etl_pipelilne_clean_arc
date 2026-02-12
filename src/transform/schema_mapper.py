@@ -1,6 +1,5 @@
 """Schema mapping module for transforming source columns to target schema."""
 
-import logging
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,8 +19,9 @@ from src.transform.normalizers import (
     ZipNormalizer,
 )
 from src.utils.hashing import compute_schema_fingerprint
+from src.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SchemaMapper:

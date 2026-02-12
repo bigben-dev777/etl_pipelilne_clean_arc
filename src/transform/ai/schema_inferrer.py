@@ -1,13 +1,13 @@
 """AI-powered schema inference for unknown data sources."""
 
 import json
-import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.transform.ai.llm_client import LLMClient
+from src.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SchemaInferrer:

@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional
@@ -30,7 +29,9 @@ except ImportError:
     HAS_GEMINI = False
 
 
-logger = logging.getLogger(__name__)
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMProvider(ABC):
