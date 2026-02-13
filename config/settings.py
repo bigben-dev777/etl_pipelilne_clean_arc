@@ -100,3 +100,103 @@ settings = Settings()
 def get_settings() -> Settings:
     """Get the global settings instance."""
     return settings
+
+
+TAEGET_COLUMN_DESCRIPTION = {
+    "company": (
+        "Facility or business legal operating name. "
+        "Data type: VARCHAR. Required. Trimmed string, no leading/trailing spaces. "
+        "Should not contain license status text (e.g., 'Licensed')."
+    ),
+    "facility_type": (
+        "Categorical value describing facility classification "
+        "(e.g., Center, Family Child Care, Group Home). "
+        "Data type: VARCHAR. Controlled vocabulary preferred."
+    ),
+    "address1": (
+        "Primary street address line. "
+        "Data type: VARCHAR. Required. "
+        "Should contain street number and street name only."
+    ),
+    "address2": (
+        "Secondary address information (suite, unit, apartment, building). "
+        "Data type: VARCHAR. Nullable."
+    ),
+    "city": (
+        "City name derived from address. "
+        "Data type: VARCHAR. Required. "
+        "Should be properly capitalized and not contain state or ZIP."
+    ),
+    "state": (
+        "Two-letter USPS state abbreviation (e.g., 'CA', 'TX'). "
+        "Data type: VARCHAR(2). Required. Must be uppercase."
+    ),
+    "zip": (
+        "5-digit or 9-digit ZIP code. "
+        "Data type: VARCHAR. Required. "
+        "Must match regex: ^\\d{5}(-\\d{4})?$"
+    ),
+    "county": (
+        "County name without suffix normalization (e.g., 'Orange', not 'Orange County'). "
+        "Data type: VARCHAR. Nullable."
+    ),
+    "phone": (
+        "Primary contact phone number. "
+        "Data type: VARCHAR. "
+        "Normalized to digits only or standard format (e.g., (###) ###-####)."
+    ),
+    "phone2": (
+        "Secondary phone number if available. "
+        "Data type: VARCHAR. Nullable. Same normalization rules as phone."
+    ),
+    "email": (
+        "Primary contact email address. "
+        "Data type: VARCHAR. Nullable. "
+        "Must match basic email regex validation."
+    ),
+    "website_address": (
+        "Facility website URL. "
+        "Data type: VARCHAR. Nullable. "
+        "Should include scheme (http:// or https://)."
+    ),
+    "first_name": (
+        "Primary contact person's first name. "
+        "Data type: VARCHAR. Nullable. "
+        "Should not include titles (e.g., Mr., Dr.)."
+    ),
+    "last_name": (
+        "Primary contact person's last name. " "Data type: VARCHAR. Nullable."
+    ),
+    "capacity": (
+        "Maximum number of children allowed by license. "
+        "Data type: NUMERIC. Must be >= 0. "
+        "Represents total capacity, not per classroom."
+    ),
+    "min_age": (
+        "Minimum age served (in months unless standardized differently). "
+        "Data type: NUMERIC. Must be >= 0 and <= max_age."
+    ),
+    "max_age": (
+        "Maximum age served (in months unless standardized differently). "
+        "Data type: NUMERIC. Must be >= min_age."
+    ),
+    "ages_served": (
+        "Free-text description of age range (e.g., '6 weeks to 5 years'). "
+        "Data type: VARCHAR. "
+        "Used when structured min/max not available."
+    ),
+    "license_status": (
+        "Current license status (e.g., Licensed, Probationary, Revoked, Closed). "
+        "Data type: VARCHAR. "
+        "Should be normalized to controlled vocabulary."
+    ),
+    "license_number": (
+        "Official state-issued license or credential number. "
+        "Data type: VARCHAR. Required if license_status indicates active license."
+    ),
+    "license_type": (
+        "Type/category of license issued by regulator. "
+        "Data type: VARCHAR. "
+        "Should align with facility_type but may differ."
+    ),
+}

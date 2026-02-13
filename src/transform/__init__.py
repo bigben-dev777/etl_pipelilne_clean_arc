@@ -1,18 +1,18 @@
 """Data transformation modules for the ETL pipeline."""
 
+from .data_quality import DataQualityScorer
+from .deduplication import DuplicateDetector
 from .normalizers import (
-    PhoneNormalizer,
-    StateNormalizer,
-    ZipNormalizer,
     AddressNormalizer,
-    NameNormalizer,
     AgeParser,
     CapacityNormalizer,
     LicenseStatusNormalizer,
+    NameNormalizer,
+    PhoneNormalizer,
+    StateNormalizer,
+    ZipNormalizer,
 )
 from .schema_mapper import SchemaMapper
-from .data_quality import DataQualityScorer
-from .deduplication import DuplicateDetector
 
 __all__ = [
     "PhoneNormalizer",
