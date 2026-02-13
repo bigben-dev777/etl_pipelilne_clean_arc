@@ -12,7 +12,7 @@ sources:
       Status: license_status
       Expiration Date: _parse_date
       Disciplinary Action: _exclude
-      Address: _parse_full_address
+      Address: address1
       State: state
       County: county
       Phone: phone
@@ -118,7 +118,6 @@ sources:
       phone:
         - "tel"
         - "telephone"
-        - "contact"
         - "mobile"
       email:
         - "e-mail"

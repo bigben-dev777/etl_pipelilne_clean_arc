@@ -84,6 +84,7 @@ class ETLPipeline:
             source_registry=self.source_registry,
             llm_client=self.llm_client,
             use_ai_mapping=self.use_ai,
+            # logic_file=self.settings.SCHEMA_MAPPING_LOGIC_FILE,
         )
         self.data_quality_scorer = DataQualityScorer()
         self.duplicate_detector = DuplicateDetector(

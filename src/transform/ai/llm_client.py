@@ -168,6 +168,52 @@ class GeminiProvider(LLMProvider):
             return int(len(text.split()) * 1.3)
 
 
+class LocalProvider(LLMProvider):
+    """Local GPT-OSS provider via OpenAI-compatible vLLM."""
+
+    def __init__(
+        self,
+        base_url: str = "http://172.20.1.106:8000/v1",
+        model: str = "Qwen3-4B",
+        temperature: float = 0.0,
+    ):
+        self.client = openai.OpenAI(
+            base_url=base_url,
+            api_key="EMPTY",  # required but ignored
+        )
+        self.model = model
+        self.temperature = temperature
+        self.total_tokens = 0
+
+    def complete(self, prompt: str, max_tokens: int = 10000, **kwargs) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.temperature,
+            max_tokens=max_tokens,
+            **kwargs,
+        )
+        logger.debug("💥" * 10)
+        logger.debug(f"Raw response from local provider: {response}")
+        # Remove <think> tags if present in response
+        if hasattr(response, "choices") and response.choices:
+            content = response.choices[0].message.content
+            if "<think>" in content:
+                content = content.split("</think>")[-1].strip()
+                response.choices[0].message.content = content
+        logger.debug("💥" * 10)
+        logger.debug(
+            f"Processed response content: {response.choices[0].message.content}"
+        )
+        if response.usage:
+            self.total_tokens += response.usage.total_tokens
+
+        return response.choices[0].message.content
+
+    def count_tokens(self, text: str) -> int:
+        return int(len(text.split()) * 1.3)
+
+
 class LLMClient:
     """
     LLM client wrapper with caching, retry, and cost control.
@@ -251,6 +297,10 @@ class LLMClient:
 
             model = model or "gemini-1.5-flash"
             return GeminiProvider(api_key, model, temperature)
+
+        elif provider == "local":
+            model = model or "Qwen3-4B"
+            return LocalProvider(model=model, temperature=temperature)
 
         else:
             raise ValueError(f"Unknown provider: {provider}")
