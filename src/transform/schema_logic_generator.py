@@ -72,9 +72,28 @@ class SchemaLogicGenerator:
     ) -> str:
         """Build prompt for LLM to generate business logic rules."""
 
-        prompt = f"""You are a data engineering assistant specializing in ETL transformations.
+        prompt = f"""
+You are a data engineering assistant specializing in ETL transformations for **childcare management platforms** (e.g., Brightwheel, Procare, HiMama).
 
-Given the following source CSV schema and sample data, generate YAML transformation rules to clean, standardize, and validate the data according to best practices.[2]
+Your task is to generate YAML transformation rules that clean, standardize, and validate data according to **early childhood education (ECE) industry standards** and **US state childcare licensing requirements**.
+
+## BUSINESS CONTEXT
+
+**Industry**: Early Childhood Education / Childcare Facility Management
+**Platform Type**: Vertical SaaS (all-in-one center management, parent communication, billing)
+**Key Stakeholders**: 
+- Center Directors (compliance, enrollment, financial reporting)
+- Teachers (attendance, daily reports, ratio compliance)
+- Parents (billing, communication, child updates)
+- State Agencies (licensing, subsidy reimbursement - CACFP, CCDF)
+
+**Critical Business Rules**:
+- **Capacity Management**: Licensed capacity determines maximum enrollment; real-time availability = licensed_capacity - current_enrollment
+- **Ratio Compliance**: Staff-to-child ratios vary by age group and state; violations trigger immediate alerts
+- **Subsidy Billing**: Multiple payer sources (private pay, state agencies, Head Start) require separate tracking
+- **Licensing**: Expired licenses block new enrollments; probations trigger enhanced monitoring
+
+## INPUT DATA
 
 SOURCE COLUMNS:
 {chr(10).join(f"- {c}" for c in source_columns)}
@@ -88,80 +107,245 @@ KNOWN COLUMN MAPPINGS (target -> source):
 TARGET SCHEMA:
 {chr(10).join(f"- {c}" for c in target_schema)}
 
-Generate a YAML configuration with the following structure:
+## DECISION PROTOCOL (FOLLOW STRICTLY)
 
-yaml sample file
+When generating rules, use this priority order:
+1. **If sample data shows the pattern**: Generate the specific rule based on actual values
+2. **If sample data is ambiguous but column exists**: Generate a reasonable default rule with common ECE mappings
+3. **If column is missing**: OMIT the rule entirely (do not generate placeholder rules)
+4. **NEVER ruminate**: Make a decision in ≤2 reasoning steps and move on
+
+## OUTPUT FORMAT
+
+Generate a YAML configuration with this exact structure:
+
+```yaml
 transformations:
   rule_name:
     target_column: <target_field>
     source_column: <source_field>
-    # Choose ONE of the following transformation types:
+    # Transformation type (choose ONE):
+    regex: "<pattern>"           # For parsing structured text
+    format: "<output_format>"    # Optional, use \\1, \\2 for groups
     
-    # 1. REGEX extraction (for parsing structured text)
-    regex: "<pattern>"
-    format: "<output_format>"  # optional, use \\1, \\2 for groups
+    # OR
     
-    # 2. CONDITIONAL assignment (for business rules)
-    condition: "<regex_pattern>"
+    condition: "<regex_pattern>" # For conditional assignment
     value: "<value_to_assign>"
     
-    # 3. MAPPING table (for standardizing values)
-    mapping:
+    # OR
+    
+    mapping:                     # For standardizing values
       "source_value": "target_value"
-      "another_source": "another_target"
 
 settings:
   case_sensitive: false
   skip_empty_values: true
   log_unmatched_rules: false
+```
 
-RULES TO GENERATE:
-1. Phone number formatting (extract digits, format as XXX-XXX-XXXX)
-2. State code standardization (map full names to 2-letter codes)
-3. License status normalization (Active, Inactive, Expired, etc.)
-4. Capacity extraction (extract numeric values from text)
-5. Age range parsing (extract min/max ages from text like "6 weeks - 12 years")
-6. Address cleaning (remove extra spaces, standardize abbreviations)
-7. Email validation patterns
-8. ZIP code formatting (5-digit or ZIP+4)
+## REQUIRED RULES (Generate based on available columns)
 
-Focus on rules that are SPECIFIC to this data schema based on the sample data patterns you observe.
-Return ONLY the YAML block, no additional explanation.[3]
+### 1. phone_format
+**Business Purpose**: SMS notifications for emergencies, billing alerts, and daily updates sent to parents/staff.
+**Logic**: Extract digits, format as XXX-XXX-XXXX for standard US dialing.
+**Fallback**: If no phone column exists, check for "Contact_Phone", "Mobile", "Cell", or "Emergency_Phone".
+
+### 2. state_standardize
+**Business Purpose**: Determines state-specific licensing requirements, subsidy agency routing, and tax calculations.
+**Logic**: Map full state names to 2-letter codes (CA, NY, TX, etc.).
+**Minimum Mappings** (include all that apply):
+  - "California": "CA"
+  - "New York": "NY" 
+  - "Texas": "TX"
+  - "Florida": "FL"
+  - "Illinois": "IL"
+  - "Oklahoma": "OK"
+  - "Pennsylvania": "PA"
+  - "Ohio": "OH"
+  - "Georgia": "GA"
+  - "North Carolina": "NC"
+**Add any states found in sample data.**
+
+### 3. license_status_normalize
+**Business Purpose**: Controls enrollment permissions and compliance monitoring. Expired/revoked licenses block new registrations.
+**Logic**: Normalize to standard status values: Active, Inactive, Expired, Pending, Revoked, Probation.
+**Common Mappings**:
+  - "Licensed", "Valid", "Current", "Good Standing" → "Active"
+  - "Lapsed", "Past Due", "Delinquent" → "Expired"
+  - "Suspended", "On Hold" → "Revoked"
+  - "Application Submitted", "Under Review" → "Pending"
+  - "Conditional", "Monitored" → "Probation"
+
+### 4. capacity_extract
+**Business Purpose**: Licensed capacity determines maximum enrollment and revenue potential. Used for real-time availability calculations.
+**Logic**: Extract numeric value from text fields.
+**Patterns**:
+  - "Licensed for 45 children" → 45
+  - "Capacity: 30 kids" → 30
+  - "20 spaces available" → 20
+**Regex**: `(\\d+)\\s*(?:children|kids|child|spaces|capacity|enrollment)`
+
+### 5. age_range_parse
+**Business Purpose**: Room assignment (infant/toddler/preschool/school-age) and staff-to-child ratio compliance.
+**Logic**: Extract min/max ages from text like "6 weeks - 12 years".
+**Conversions**:
+  - Weeks to years: divide by 52
+  - Months to years: divide by 12
+  - "Infant" → 0-1 years
+  - "Toddler" → 1-3 years  
+  - "Preschool" → 3-5 years
+  - "School-age" → 5-12 years
+**Output**: min_age (float), max_age (float) in years
+
+### 6. address_clean
+**Business Purpose**: Emergency services routing, mail delivery for tax documents (1099-K, W-2), and parent proximity search.
+**Logic**: 
+  - Trim leading/trailing spaces
+  - Standardize abbreviations: St→Street, Ave→Avenue, Rd→Road, Blvd→Boulevard, Dr→Drive, Ln→Lane, Ct→Court, Apt→Apartment, Ste→Suite
+  - Normalize directionals: N→North, S→South, E→East, W→West, NE→Northeast, etc.
+  - Convert to Title Case
+
+### 7. email_validate
+**Business Purpose**: Primary communication channel (95% of parent engagement); used for app login and billing notifications.
+**Logic**: 
+  - Validate format with regex
+  - Lowercase domain for consistency
+  - Remove extra spaces
+**Regex**: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$`
+
+### 8. zip_format
+**Business Purpose**: Determines state subsidy eligibility, sales tax rates, and geographic reporting for multi-site chains.
+**Logic**: Standardize to 5-digit or ZIP+4 format.
+**Patterns**:
+  - "12345" → valid
+  - "12345-6789" or "123456789" → "12345-6789"
+  - "1234" → invalid (flag for review)
+**Regex**: `^(\\d{5})(?:-?(\\d{4}))?$`
+
+## ADDITIONAL CHILDcare-SPECIFIC RULES (if applicable columns exist)
+
+### 9. fte_calculate (Full-Time Equivalent)
+**Business Purpose**: Billing calculations (part-time vs full-time rates) and staff scheduling.
+**Logic**: Convert schedule to FTE (1.0 = full-time, 0.5 = half-day).
+**Patterns**: "M-F 8am-5pm" → 1.0, "MWF 9am-12pm" → 0.3
+
+### 10. subsidy_agency_map
+**Business Purpose**: Multi-payer billing (private + state agency + Head Start).
+**Logic**: Map agency names to standard codes for reconciliation reporting.
+**Common**: "DFPS", "CCDF", "Head Start", "Early Head Start"
+
+### 11. immunization_status
+**Business Purpose**: Enrollment eligibility and state compliance reporting.
+**Logic**: Normalize to: Up to Date, Overdue, Exempt, Incomplete.
+**Exemption types**: Medical, Religious, Philosophical (state-dependent)
+
+### 12. enrollment_status
+**Business Purpose**: Revenue recognition and capacity planning.
+**Logic**: Normalize to: Active, Waitlist, Withdrawn, Graduated, Suspended.
+**Business Rules**: 
+  - Active counts against capacity
+  - Waitlist ordered by date
+  - Withdrawn retains financial records for 7 years (IRS)
+
+## CRITICAL CONSTRAINTS
+
+- **DO NOT** second-guess yourself. Generate the YAML immediately after analyzing sample data.
+- **If uncertain between two options**, choose the more common ECE industry standard.
+- **NEVER** output reasoning or explanation inside the YAML block.
+- **If a column is missing**, use the most likely source column name based on KNOWN COLUMN MAPPINGS.
+- **Return ONLY the YAML block**, no markdown fences, no conversational text.
+- **State-specific variations**: If sample data indicates specific state requirements (e.g., Texas DFPS vs California CCL), prioritize those mappings.
+
+## ANTI-PATTERN WARNING
+
+If you find yourself repeating "But the user might..." or "On the other hand..." more than once, **STOP** and pick the first reasonable option based on standard childcare industry practices.
+
+## EXAMPLE OUTPUT STRUCTURE
+
+```yaml
+transformations:
+  phone_format:
+    target_column: phone
+    source_column: Contact_Phone
+    regex: "(\\d{3})\\D*(\\d{3})\\D*(\\d{4})"
+    format: "\1-\2-\3"
+    
+  state_standardize:
+    target_column: state_code
+    source_column: State
+    mapping:
+      "California": "CA"
+      "Texas": "TX"
+      "New York": "NY"
+      
+  license_status_normalize:
+    target_column: license_status
+    source_column: License_Status
+    mapping:
+      "Licensed": "Active"
+      "Valid": "Active"
+      "Lapsed": "Expired"
+      "Suspended": "Revoked"
+
+settings:
+  case_sensitive: false
+  skip_empty_values: true
+  log_unmatched_rules: false
+```
 """
         return prompt
 
     def _parse_logic_response(self, response: str) -> Tuple[Dict, Dict]:
         """
         Parse YAML business logic from LLM response.
-
-        Args:
-            response: Raw LLM response text
-
-        Returns:
-            Tuple of (transformations dict, settings dict)
+        Pre-emptively fixes regex escape issues before parsing.
         """
-        # Extract YAML from code fence if present
         yaml_text = self._extract_yaml(response)
 
         if not yaml_text:
             logger.warning("Could not extract YAML from LLM response")
             return {}, {}
 
+        # Always sanitize regex patterns before parsing (safer approach)
+        sanitized_yaml = self._sanitize_yaml_regex(yaml_text)
+
         try:
-            parsed = yaml.safe_load(yaml_text) or {}
-            transformations = parsed.get("transformations", {})
-            settings = parsed.get("settings", {})
-
-            # Validate the structure
-            if not self._validate_logic_structure(transformations):
-                logger.warning("Generated logic has invalid structure")
-                return {}, {}
-
-            return transformations, settings
-
-        except yaml.YAMLError as e:
+            parsed = yaml.safe_load(sanitized_yaml) or {}
+        except Exception as e:
             logger.error(f"Failed to parse YAML: {e}")
             return {}, {}
+
+        transformations = parsed.get("transformations", {})
+        settings = parsed.get("settings", {})
+
+        if not self._validate_logic_structure(transformations):
+            logger.warning("Generated logic has invalid structure")
+            return {}, {}
+
+        return transformations, settings
+
+    def _sanitize_yaml_regex(self, yaml_text: str) -> str:
+        """
+        Pre-emptively fix regex patterns in YAML to prevent escape errors.
+        Converts double-quoted regex values to single quotes.
+        """
+        # Pattern: match regex/format/condition keys with double-quoted values
+        # Group 1: key and colon with space
+        # Group 2: the quoted content
+        pattern = re.compile(
+            r'((?:regex|format|condition):\s*)\"((?:[^"\\]|\\.)*?)\"', re.IGNORECASE
+        )
+
+        def replace_with_single_quotes(match):
+            prefix = match.group(1)
+            content = match.group(2)
+
+            # In single quotes, only '' is special. Escape single quotes.
+            safe_content = content.replace("'", "''")
+            return f"{prefix}'{safe_content}'"
+
+        return pattern.sub(replace_with_single_quotes, yaml_text)
 
     def _extract_yaml(self, response: str) -> Optional[str]:
         """Extract YAML content from LLM response."""

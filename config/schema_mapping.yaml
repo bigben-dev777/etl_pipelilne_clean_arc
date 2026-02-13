@@ -111,21 +111,14 @@ sources:
     patterns:
       company:
         - "name"
-        - "facility"
-        - "provider"
-        - "operation"
         - "organization"
       phone:
-        - "tel"
-        - "telephone"
-        - "mobile"
+        - "phone"
       email:
         - "e-mail"
         - "mail"
       address1:
-        - "street"
-        - "addr"
-        - "location"
+        - "address"
       city:
         - "town"
         - "municipality"

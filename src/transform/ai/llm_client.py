@@ -85,7 +85,7 @@ class OpenAIProvider(LLMProvider):
             return len(encoding.encode(text))
         except:
             # Fallback: rough estimate
-            return len(text.split()) * 1.3
+            return int(len(text.split()) * 1.3)
 
 
 class AnthropicProvider(LLMProvider):
@@ -121,7 +121,7 @@ class AnthropicProvider(LLMProvider):
 
     def count_tokens(self, text: str) -> int:
         """Count tokens (rough estimate)."""
-        return len(text.split()) * 1.3
+        return int(len(text.split()) * 1.3)
 
 
 class GeminiProvider(LLMProvider):
@@ -143,11 +143,9 @@ class GeminiProvider(LLMProvider):
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
-            config={
-                "temperature": self.temperature,
-                "max_output_tokens": max_tokens,
-                **kwargs,
-            },
+            config=genai.types.GenerateContentConfig(
+                temperature=self.temperature, max_output_tokens=max_tokens, **kwargs
+            ),
         )
 
         # Token tracking (if usage metadata available)
@@ -157,13 +155,19 @@ class GeminiProvider(LLMProvider):
                 usage, "candidates_token_count", 0
             )
 
+        if response.text == None:
+            return ""
         return response.text
 
     def count_tokens(self, text: str) -> int:
         """Count tokens using Gemini tokenizer if available."""
         try:
             response = self.client.models.count_tokens(model=self.model, contents=text)
-            return response.total_tokens
+
+            if response.total_tokens is None:
+                return 0
+            else:
+                return response.total_tokens
         except Exception:
             return int(len(text.split()) * 1.3)
 
@@ -185,26 +189,20 @@ class LocalProvider(LLMProvider):
         self.temperature = temperature
         self.total_tokens = 0
 
-    def complete(self, prompt: str, max_tokens: int = 10000, **kwargs) -> str:
+    def complete(self, prompt: str, max_tokens: int = 3000, **kwargs) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=self.temperature,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
             **kwargs,
         )
-        logger.debug("💥" * 10)
-        logger.debug(f"Raw response from local provider: {response}")
         # Remove <think> tags if present in response
         if hasattr(response, "choices") and response.choices:
             content = response.choices[0].message.content
             if "<think>" in content:
                 content = content.split("</think>")[-1].strip()
                 response.choices[0].message.content = content
-        logger.debug("💥" * 10)
-        logger.debug(
-            f"Processed response content: {response.choices[0].message.content}"
-        )
         if response.usage:
             self.total_tokens += response.usage.total_tokens
 
@@ -359,6 +357,9 @@ class LLMClient:
         """Call LLM with exponential backoff retry."""
         for attempt in range(max_retries):
             try:
+                if self.provider is None:
+                    raise Exception("LLM provider not initialized")
+
                 return self.provider.complete(prompt, **kwargs)
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -367,6 +368,8 @@ class LLMClient:
                     time.sleep(wait_time)
                 else:
                     raise
+
+        raise Exception("Max retries exceeded")
 
     def batch_complete(
         self, prompts: List[str], batch_size: int = 10, **kwargs
