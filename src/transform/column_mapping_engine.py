@@ -69,11 +69,12 @@ class ColumnMappingEngine:
         exact_matches = self._exact_match(source_columns, target_columns)
         mapping.update({k: v for k, v in exact_matches.items() if k not in mapping})
         logger.debug(f"Exact matching found {len(exact_matches)} columns")
+        logger.debug(f"Mapping columns: {mapping}")
 
         # Strategy 3: Fuzzy matching with patterns
-        fuzzy_matches = self._fuzzy_match(source_columns, target_columns)
-        mapping.update({k: v for k, v in fuzzy_matches.items() if k not in mapping})
-        logger.debug(f"Fuzzy matching found {len(fuzzy_matches)} columns")
+        # fuzzy_matches = self._fuzzy_match(source_columns, target_columns)
+        # mapping.update({k: v for k, v in fuzzy_matches.items() if k not in mapping})
+        # logger.debug(f"Fuzzy matching found {len(fuzzy_matches)} columns")
 
         # Strategy 4: AI-assisted mapping for remaining columns
         if self.llm_client and len(mapping) < len(target_columns) * 0.7:
@@ -175,7 +176,6 @@ class ColumnMappingEngine:
         try:
             # Get sample data for context
             sample_dict = sample_data[source_columns].head(5).to_dict(orient="records")
-
             # Get metadata analysis for better context
             metadata = analyze_dataframe(sample_data[source_columns], return_type="str")
             logger.debug(f"Sample data metadata:\n{metadata}")
@@ -185,6 +185,8 @@ class ColumnMappingEngine:
             )
 
             response = self.llm_client.complete(prompt)
+            logger.debug(f"LLM response for mapping:\n{response}")
+
             mapping = self._parse_mapping_response(response)
 
             # Filter to only requested columns
@@ -198,6 +200,7 @@ class ColumnMappingEngine:
 
         except Exception as e:
             logger.error(f"AI-assisted mapping failed: {e}")
+            exit(1)
             return {}
 
     def _build_mapping_prompt(
