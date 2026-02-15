@@ -1,6 +1,6 @@
 # Facility Lead ETL Pipeline
 
-A production-grade ETL system that ingests heterogeneous external data sources containing facility/childcare business records, normalizes them into a unified schema, and loads them into a SQL-queryable database — incorporating LLM/AI capabilities to improve data quality, classification, and enrichment.
+A production-grade ETL system that ingests heterogeneous external data sources containing facility/childcare business records, normalizes them into a  schema, and loads them into a SQL-queryable database — incorporating LLM/AI capabilities to improve data quality, classification, and enrichment.
 
 ## Quick Start
 

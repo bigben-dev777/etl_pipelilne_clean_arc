@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a production-grade ETL system for facility/childcare business lead enrichment. The pipeline ingests heterogeneous external CSV/Excel data sources with varying schemas, normalizes them into a unified schema, and loads them into a SQL-queryable SQLite database.
+This is a production-grade ETL system for facility/childcare business lead enrichment. The pipeline ingests heterogeneous external CSV/Excel data sources with varying schemas, normalizes them into a  schema, and loads them into a SQL-queryable SQLite database.
 
 ## Key Features Implemented
 
