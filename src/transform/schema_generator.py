@@ -96,18 +96,8 @@ class SchemaGenerator:
                     attempt=attempt,
                 )
 
-                # print("🚀" * 20)
-                from pathlib import Path
-
-                Path("output.txt").write_text(prompt, encoding="utf-8")
-                # logger.debug(f"Generated prompt (attempt {attempt}):\n{prompt}")
-                # print("🚀" * 20)
-                # exit(1)
                 # Get LLM response
                 response = self.llm_client.complete(prompt)
-                logger.debug("💥" * 20)
-                logger.debug(f"LLM response (attempt {attempt}):\n{response}...")
-                logger.debug("💥" * 20)
 
                 # Parse and validate JSON response
                 mapping, transformations, settings, confidence = (

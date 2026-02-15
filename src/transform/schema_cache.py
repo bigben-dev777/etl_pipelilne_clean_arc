@@ -116,15 +116,15 @@ class SchemaCacheManager:
         try:
             with open(cache_file, "w", encoding="utf-8") as f:
                 # Write header comment
-                f.write(f"# Schema Cache File\n")
+                f.write("# Schema Cache File\n")
                 f.write(f"# Generated: {datetime.now().isoformat()}\n")
                 f.write(f"# Fingerprint: {schema_fingerprint}\n")
                 f.write(f"# Confidence: {confidence:.2%}\n")
-                f.write(f"#\n")
+                f.write("#\n")
                 f.write(
-                    f"# This file was generated from LLM JSON output and converted to YAML for readability.\n"
+                    "# This file was generated from LLM JSON output and converted to YAML for readability.\n"
                 )
-                f.write(f"# You can manually edit this file if needed.\n\n")
+                f.write("# You can manually edit this file if needed.\n\n")
 
                 # Write YAML data
                 yaml.dump(

@@ -1,32 +1,17 @@
-You are a data engineering assistant specializing in ETL transformations for childcare management platforms (Brightwheel, Procare, HiMama).
-
-
+You are an expert data engineering assistant specializing in ETL transformations for early childhood education platforms (Brightwheel, Procare, HiMama).
 
 ## TASK
 
 Generate a **STRICT JSON** configuration that includes:
-1. **Column Mappings**: Map source columns to target columns
-2. **Transformation Rules**: Data cleaning and standardization rules
+1. Column mappings from source → target
+2. Transformation rules for cleaning/standardization
 
 You MUST return ONLY valid JSON. No markdown, no explanations, no code fences.
 
 ## BUSINESS CONTEXT
 
 **Industry**: Early Childhood Education / Childcare Facility Management
-
-**Platform Type**: Vertical SaaS (all-in-one center management, parent communication, billing)
-
-**Key Stakeholders**: 
-- Center Directors (compliance, enrollment, financial reporting)
-- Teachers (attendance, daily reports, ratio compliance)
-- Parents (billing, communication, child updates)
-- State Agencies (licensing, subsidy reimbursement - CACFP, CCDF)
-
-**Critical Business Rules**:
-- **Capacity Management**: Licensed capacity determines maximum enrollment; real-time availability = licensed_capacity - current_enrollment
-- **Ratio Compliance**: Staff-to-child ratios vary by age group and state; violations trigger immediate alerts
-- **Subsidy Billing**: Multiple payer sources (private pay, state agencies, Head Start) require separate tracking
-- **Licensing**: Expired licenses block new enrollments; probations trigger enhanced monitoring
+**Critical Areas**: Licensing compliance, capacity management, state subsidies, parent communication, ratio enforcement.
 
 ## INPUT DATA
 
@@ -58,6 +43,536 @@ You MUST return ONLY valid JSON. No markdown, no explanations, no code fences.
 ]
 
 **TARGET COLUMNS:**
+[
+  "company",
+  "facility_type",
+  "address1",
+  "address2",
+  "city",
+  "state",
+  "zip",
+  "county",
+  "phone",
+  "phone2",
+  "email",
+  "website_address",
+  "first_name",
+  "last_name",
+  "capacity",
+  "min_age",
+  "max_age",
+  "ages_served",
+  "license_status",
+  "license_number",
+  "license_type"
+]
+
+## TARGET SCHEMA - KEY CONSTRAINTS
+
+**Must-have fields**:
+- company, facility_type, address1, city, state, zip, phone, email
+- capacity (integer >= 0)
+- license_status, license_number, license_type
+
+**Hard rules**:
+- state: exactly 2 uppercase letters
+- zip: ^\d{5}(-\d{4})?$
+- phone: XXX-XXX-XXXX or 10+ digits
+- capacity: non-negative integer
+- license_status: Active|Expired|Revoked|Pending|Probation|Closed
+
+**METADATA ANALYSIS:**
+```
+{
+  "shape": [
+    5,
+    23
+  ],
+  "columns": [
+    "Operation",
+    "Agency Number",
+    "Operation Name",
+    "Address",
+    "City",
+    "State",
+    "Zip",
+    "County",
+    "Phone",
+    "Type",
+    "Status",
+    "Issue Date",
+    "Capacity",
+    "Email Address",
+    "Facility ID",
+    "Monitoring Frequency",
+    "Infant",
+    "Toddler",
+    "Preschool",
+    "School",
+    "_source_file",
+    "_source_sheet",
+    "_extraction_time"
+  ],
+  "dtypes": {
+    "Operation": "int64",
+    "Agency Number": "float64",
+    "Operation Name": "str",
+    "Address": "str",
+    "City": "str",
+    "State": "str",
+    "Zip": "int64",
+    "County": "str",
+    "Phone": "str",
+    "Type": "str",
+    "Status": "str",
+    "Issue Date": "str",
+    "Capacity": "float64",
+    "Email Address": "str",
+    "Facility ID": "int64",
+    "Monitoring Frequency": "float64",
+    "Infant": "str",
+    "Toddler": "str",
+    "Preschool": "str",
+    "School": "str",
+    "_source_file": "str",
+    "_source_sheet": "str",
+    "_extraction_time": "datetime64[us]"
+  },
+  "missing": [
+    {
+      "missing_count": 5,
+      "missing_percent": 100.0
+    },
+    {
+      "missing_count": 5,
+      "missing_percent": 100.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    },
+    {
+      "missing_count": 0,
+      "missing_percent": 0.0
+    }
+  ],
+  "numeric_summary": [
+    {
+      "count": 5.0,
+      "mean": 1331898.6,
+      "std": 499612.0873605842,
+      "min": 504044.0,
+      "25%": 1239246.0,
+      "50%": 1523696.0,
+      "75%": 1662892.0,
+      "max": 1729615.0,
+      "variance": 249612237836.80002,
+      "skewness": -1.5433619651824382,
+      "kurtosis": 2.1945061690900936
+    },
+    {
+      "count": 0.0,
+      "mean": NaN,
+      "std": NaN,
+      "min": NaN,
+      "25%": NaN,
+      "50%": NaN,
+      "75%": NaN,
+      "max": NaN,
+      "variance": NaN,
+      "skewness": NaN,
+      "kurtosis": NaN
+    },
+    {
+      "count": 5.0,
+      "mean": 77766.0,
+      "std": 751.0206388642059,
+      "min": 76541.0,
+      "25%": 77581.0,
+      "50%": 78069.0,
+      "75%": 78228.0,
+      "max": 78411.0,
+      "variance": 564032.0,
+      "skewness": -1.42610264132269,
+      "kurtosis": 1.7448151204030324
+    },
+    {
+      "count": 5.0,
+      "mean": 88.0,
+      "std": 72.89718787443039,
+      "min": 12.0,
+      "25%": 38.0,
+      "50%": 82.0,
+      "75%": 108.0,
+      "max": 200.0,
+      "variance": 5314.0,
+      "skewness": 0.9129122963448169,
+      "kurtosis": 0.7258856637206748
+    },
+    {
+      "count": 5.0,
+      "mean": 942021.4,
+      "std": 509329.1951054838,
+      "min": 133110.0,
+      "25%": 773628.0,
+      "50%": 1122524.0,
+      "75%": 1290709.0,
+      "max": 1390136.0,
+      "variance": 259416228986.80002,
+      "skewness": -1.248207327446241,
+      "kurtosis": 1.0110021934076858
+    },
+    {
+      "count": 0.0,
+      "mean": NaN,
+      "std": NaN,
+      "min": NaN,
+      "25%": NaN,
+      "50%": NaN,
+      "75%": NaN,
+      "max": NaN,
+      "variance": NaN,
+      "skewness": NaN,
+      "kurtosis": NaN
+    }
+  ],
+  "categorical_summary": {
+    "Operation Name": {
+      "unique_count": 5,
+      "top_values": {
+        "123-Abc Learning Center": 1,
+        "1st Thing 1st Child Development and Learning Center, LLC": 1,
+        "A Bar Z Ponderosa": 1,
+        "A B Sea Preschool": 1,
+        "K\" Street Learning Center LLC\"": 1
+      }
+    },
+    "Address": {
+      "unique_count": 5,
+      "top_values": {
+        "5418 BAKERSFIELD ST": 1,
+        "410 E CHURCH AVE": 1,
+        "4901 BURNEY DR": 1,
+        "4540 BROADWAY ST": 1,
+        "19290 K ST": 1
+      }
+    },
+    "City": {
+      "unique_count": 5,
+      "top_values": {
+        "SAN ANTONIO": 1,
+        "KILLEEN": 1,
+        "CORPUS CHRISTI": 1,
+        "PEARLAND": 1,
+        "SOMERSET": 1
+      }
+    },
+    "State": {
+      "unique_count": 1,
+      "top_values": {
+        "TX": 5
+      }
+    },
+    "County": {
+      "unique_count": 4,
+      "top_values": {
+        "BEXAR": 2,
+        "BELL": 1,
+        "NUECES": 1,
+        "BRAZORIA": 1
+      }
+    },
+    "Phone": {
+      "unique_count": 5,
+      "top_values": {
+        "210-385-3663": 1,
+        "254-634-4600": 1,
+        "361-992-7681": 1,
+        "832-243-4602": 1,
+        "830-429-1010": 1
+      }
+    },
+    "Type": {
+      "unique_count": 2,
+      "top_values": {
+        "Licensed Center - Child Care Program": 4,
+        "Licensed Child-Care Home": 1
+      }
+    },
+    "Status": {
+      "unique_count": 1,
+      "top_values": {
+        "Full Permit": 5
+      }
+    },
+    "Issue Date": {
+      "unique_count": 5,
+      "top_values": {
+        "2022-06-14": 1,
+        "2013-10-07": 1,
+        "1994-09-16": 1,
+        "2018-03-21": 1,
+        "2011-10-13": 1
+      }
+    },
+    "Email Address": {
+      "unique_count": 5,
+      "top_values": {
+        "lorena123abc@aol.com": 1,
+        "director@1stthing1st.com": 1,
+        "abarzponderosa@sbcglobal.net": 1,
+        "abseapreschool@gmail.com": 1,
+        "sylvia@kstreetlearningcenter.com": 1
+      }
+    },
+    "Infant": {
+      "unique_count": 2,
+      "top_values": {
+        "Y": 3,
+        "N": 2
+      }
+    },
+    "Toddler": {
+      "unique_count": 1,
+      "top_values": {
+        "Y": 5
+      }
+    },
+    "Preschool": {
+      "unique_count": 1,
+      "top_values": {
+        "Y": 5
+      }
+    },
+    "School": {
+      "unique_count": 1,
+      "top_values": {
+        "Y": 5
+      }
+    },
+    "_source_file": {
+      "unique_count": 1,
+      "top_values": {
+        "Technical Exercise Data.xlsx": 5
+      }
+    },
+    "_source_sheet": {
+      "unique_count": 1,
+      "top_values": {
+        "source3": 5
+      }
+    }
+  },
+  "duplicate_rows": 0
+}
+```
+
+**SAMPLE DATA (first 10 rows):**
+```json
+[
+  {
+    "Operation": 1729615,
+    "Agency Number": NaN,
+    "Operation Name": "123-Abc Learning Center",
+    "Address": "5418 BAKERSFIELD ST",
+    "City": "SAN ANTONIO",
+    "State": "TX",
+    "Zip": 78228,
+    "County": "BEXAR",
+    "Phone": "210-385-3663",
+    "Type": "Licensed Child-Care Home",
+    "Status": "Full Permit",
+    "Issue Date": "2022-06-14",
+    "Capacity": 12.0,
+    "Email Address": "lorena123abc@aol.com",
+    "Facility ID": 1390136,
+    "Monitoring Frequency": NaN,
+    "Infant": "N",
+    "Toddler": "Y",
+    "Preschool": "Y",
+    "School": "Y",
+    "_source_file": "Technical Exercise Data.xlsx",
+    "_source_sheet": "source3",
+    "_extraction_time": "2026-02-15T08:39:03.874736"
+  },
+  {
+    "Operation": 1523696,
+    "Agency Number": NaN,
+    "Operation Name": "1st Thing 1st Child Development and Learning Center, LLC",
+    "Address": "410 E CHURCH AVE",
+    "City": "KILLEEN",
+    "State": "TX",
+    "Zip": 76541,
+    "County": "BELL",
+    "Phone": "254-634-4600",
+    "Type": "Licensed Center - Child Care Program",
+    "Status": "Full Permit",
+    "Issue Date": "2013-10-07",
+    "Capacity": 38.0,
+    "Email Address": "director@1stthing1st.com",
+    "Facility ID": 1122524,
+    "Monitoring Frequency": NaN,
+    "Infant": "Y",
+    "Toddler": "Y",
+    "Preschool": "Y",
+    "School": "Y",
+    "_source_file": "Technical Exercise Data.xlsx",
+    "_source_sheet": "source3",
+    "_extraction_time": "2026-02-15T08:39:03.874736"
+  },
+  {
+    "Operation": 504044,
+    "Agency Number": NaN,
+    "Operation Name": "A Bar Z Ponderosa",
+    "Address": "4901 BURNEY DR",
+    "City": "CORPUS CHRISTI",
+    "State": "TX",
+    "Zip": 78411,
+    "County": "NUECES",
+    "Phone": "361-992-7681",
+    "Type": "Licensed Center - Child Care Program",
+    "Status": "Full Permit",
+    "Issue Date": "1994-09-16",
+    "Capacity": 200.0,
+    "Email Address": "abarzponderosa@sbcglobal.net",
+    "Facility ID": 133110,
+    "Monitoring Frequency": NaN,
+    "Infant": "Y",
+    "Toddler": "Y",
+    "Preschool": "Y",
+    "School": "Y",
+    "_source_file": "Technical Exercise Data.xlsx",
+    "_source_sheet": "source3",
+    "_extraction_time": "2026-02-15T08:39:03.874736"
+  },
+  {
+    "Operation": 1662892,
+    "Agency Number": NaN,
+    "Operation Name": "A B Sea Preschool",
+    "Address": "4540 BROADWAY ST",
+    "City": "PEARLAND",
+    "State": "TX",
+    "Zip": 77581,
+    "County": "BRAZORIA",
+    "Phone": "832-243-4602",
+    "Type": "Licensed Center - Child Care Program",
+    "Status": "Full Permit",
+    "Issue Date": "2018-03-21",
+    "Capacity": 108.0,
+    "Email Address": "abseapreschool@gmail.com",
+    "Facility ID": 1290709,
+    "Monitoring Frequency": NaN,
+    "Infant": "N",
+    "Toddler": "Y",
+    "Preschool": "Y",
+    "School": "Y",
+    "_source_file": "Technical Exercise Data.xlsx",
+    "_source_sheet": "source3",
+    "_extraction_time": "2026-02-15T08:39:03.874736"
+  },
+  {
+    "Operation": 1239246,
+    "Agency Number": NaN,
+    "Operation Name": "K\" Street Learning Center LLC\"",
+    "Address": "19290 K ST",
+    "City": "SOMERSET",
+    "State": "TX",
+    "Zip": 78069,
+    "County": "BEXAR",
+    "Phone": "830-429-1010",
+    "Type": "Licensed Center - Child Care Program",
+    "Status": "Full Permit",
+    "Issue Date": "2011-10-13",
+    "Capacity": 82.0,
+    "Email Address": "sylvia@kstreetlearningcenter.com",
+    "Facility ID": 773628,
+    "Monitoring Frequency": NaN,
+    "Infant": "Y",
+    "Toddler": "Y",
+    "Preschool": "Y",
+    "School": "Y",
+    "_source_file": "Technical Exercise Data.xlsx",
+    "_source_sheet": "source3",
+    "_extraction_time": "2026-02-15T08:39:03.874736"
+  }
+]
+```
 
 # Target Column Descriptions - Detailed Specification
 
@@ -110,9 +625,8 @@ You MUST return ONLY valid JSON. No markdown, no explanations, no code fences.
 
 **Validation Rules:**
 - Must contain street number and street name at minimum
-- Should NOT contain city, state, or ZIP code
+- Should NOT contain state or ZIP code
 - Should NOT contain secondary address information (use address2 for that)
-- Must be trimmed of leading/trailing whitespace
 - Directional indicators (N, S, E, W, NE, etc.) should be included if part of the address
 - Street type abbreviations (St, Ave, Rd, Blvd) are acceptable
 
@@ -520,633 +1034,54 @@ You MUST return ONLY valid JSON. No markdown, no explanations, no code fences.
 - Original source values should be preserved in separate columns if significant transformation is required
 - Transformation logic should be documented for audit purposes
 
-
-**SAMPLE DATA (first 10 rows):**
-```json
-[
-  {
-    "Operation": 1147066,
-    "Agency Number": NaN,
-    "Operation Name": "2nd Step Daycare & Learning Center",
-    "Address": "4255 S R L THORNTON FWY",
-    "City": "DALLAS",
-    "State": "TX",
-    "Zip": 75224,
-    "County": "DALLAS",
-    "Phone": "214-372-2800",
-    "Type": "Licensed Center - Child Care Program",
-    "Status": "Full Permit",
-    "Issue Date": "2010-11-05",
-    "Capacity": 198.0,
-    "Email Address": "daycare2ndstep@outlook.com",
-    "Facility ID": 662108,
-    "Monitoring Frequency": NaN,
-    "Infant": "Y",
-    "Toddler": "Y",
-    "Preschool": "Y",
-    "School": "Y",
-    "_source_file": "Technical Exercise Data.xlsx",
-    "_source_sheet": "source3",
-    "_extraction_time": "2026-02-14T22:29:31.319955"
-  },
-  {
-    "Operation": 1781337,
-    "Agency Number": NaN,
-    "Operation Name": "5 Little Ducklings",
-    "Address": "14649 BEECHNUT ST",
-    "City": "HOUSTON",
-    "State": "TX",
-    "Zip": 77083,
-    "County": "HARRIS",
-    "Phone": "281-988-6723",
-    "Type": "Licensed Center - Child Care Program",
-    "Status": NaN,
-    "Issue Date": NaN,
-    "Capacity": NaN,
-    "Email Address": NaN,
-    "Facility ID": 1454773,
-    "Monitoring Frequency": NaN,
-    "Infant": "N",
-    "Toddler": "N",
-    "Preschool": "N",
-    "School": "N",
-    "_source_file": "Technical Exercise Data.xlsx",
-    "_source_sheet": "source3",
-    "_extraction_time": "2026-02-14T22:29:31.319955"
-  },
-  {
-    "Operation": 504044,
-    "Agency Number": NaN,
-    "Operation Name": "A Bar Z Ponderosa",
-    "Address": "4901 BURNEY DR",
-    "City": "CORPUS CHRISTI",
-    "State": "TX",
-    "Zip": 78411,
-    "County": "NUECES",
-    "Phone": "361-992-7681",
-    "Type": "Licensed Center - Child Care Program",
-    "Status": "Full Permit",
-    "Issue Date": "1994-09-16",
-    "Capacity": 200.0,
-    "Email Address": "abarzponderosa@sbcglobal.net",
-    "Facility ID": 133110,
-    "Monitoring Frequency": NaN,
-    "Infant": "Y",
-    "Toddler": "Y",
-    "Preschool": "Y",
-    "School": "Y",
-    "_source_file": "Technical Exercise Data.xlsx",
-    "_source_sheet": "source3",
-    "_extraction_time": "2026-02-14T22:29:31.319955"
-  },
-  {
-    "Operation": 1736301,
-    "Agency Number": NaN,
-    "Operation Name": "A Beautiful Child Development Center",
-    "Address": "3502 SLIDE RD A25",
-    "City": "LUBBOCK",
-    "State": "TX",
-    "Zip": 79414,
-    "County": "LUBBOCK",
-    "Phone": "806-701-4022",
-    "Type": "Licensed Center - Child Care Program",
-    "Status": "Full Permit",
-    "Issue Date": "2023-04-27",
-    "Capacity": 16.0,
-    "Email Address": "mrds.abc@yahoo.com",
-    "Facility ID": 1398475,
-    "Monitoring Frequency": NaN,
-    "Infant": "Y",
-    "Toddler": "Y",
-    "Preschool": "Y",
-    "School": "Y",
-    "_source_file": "Technical Exercise Data.xlsx",
-    "_source_sheet": "source3",
-    "_extraction_time": "2026-02-14T22:29:31.319955"
-  },
-  {
-    "Operation": 1730398,
-    "Agency Number": NaN,
-    "Operation Name": "1 on 1 Childcare Academy",
-    "Address": "11925 GLOGER ST",
-    "City": "HOUSTON",
-    "State": "TX",
-    "Zip": 77039,
-    "County": "HARRIS",
-    "Phone": "832-295-3525",
-    "Type": "Licensed Center - Child Care Program",
-    "Status": "Full Permit",
-    "Issue Date": "2022-07-01",
-    "Capacity": 33.0,
-    "Email Address": "1on1childcareacademy@gmail.com",
-    "Facility ID": 1391139,
-    "Monitoring Frequency": NaN,
-    "Infant": "Y",
-    "Toddler": "Y",
-    "Preschool": "Y",
-    "School": "Y",
-    "_source_file": "Technical Exercise Data.xlsx",
-    "_source_sheet": "source3",
-    "_extraction_time": "2026-02-14T22:29:31.319955"
-  }
-]
-```
-
-**METADATA ANALYSIS:**
-```
-{
-  "shape": [
-    5,
-    23
-  ],
-  "columns": [
-    "Operation",
-    "Agency Number",
-    "Operation Name",
-    "Address",
-    "City",
-    "State",
-    "Zip",
-    "County",
-    "Phone",
-    "Type",
-    "Status",
-    "Issue Date",
-    "Capacity",
-    "Email Address",
-    "Facility ID",
-    "Monitoring Frequency",
-    "Infant",
-    "Toddler",
-    "Preschool",
-    "School",
-    "_source_file",
-    "_source_sheet",
-    "_extraction_time"
-  ],
-  "dtypes": {
-    "Operation": "int64",
-    "Agency Number": "float64",
-    "Operation Name": "str",
-    "Address": "str",
-    "City": "str",
-    "State": "str",
-    "Zip": "int64",
-    "County": "str",
-    "Phone": "str",
-    "Type": "str",
-    "Status": "str",
-    "Issue Date": "str",
-    "Capacity": "float64",
-    "Email Address": "str",
-    "Facility ID": "int64",
-    "Monitoring Frequency": "float64",
-    "Infant": "str",
-    "Toddler": "str",
-    "Preschool": "str",
-    "School": "str",
-    "_source_file": "str",
-    "_source_sheet": "str",
-    "_extraction_time": "datetime64[us]"
-  },
-  "missing": [
-    {
-      "missing_count": 5,
-      "missing_percent": 100.0
-    },
-    {
-      "missing_count": 5,
-      "missing_percent": 100.0
-    },
-    {
-      "missing_count": 1,
-      "missing_percent": 20.0
-    },
-    {
-      "missing_count": 1,
-      "missing_percent": 20.0
-    },
-    {
-      "missing_count": 1,
-      "missing_percent": 20.0
-    },
-    {
-      "missing_count": 1,
-      "missing_percent": 20.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    },
-    {
-      "missing_count": 0,
-      "missing_percent": 0.0
-    }
-  ],
-  "numeric_summary": [
-    {
-      "count": 5.0,
-      "mean": 1379829.2,
-      "std": 555058.0071043926,
-      "min": 504044.0,
-      "25%": 1147066.0,
-      "50%": 1730398.0,
-      "75%": 1736301.0,
-      "max": 1781337.0,
-      "variance": 308089391250.69995,
-      "skewness": -1.2943617852576852,
-      "kurtosis": 0.5396884536306867
-    },
-    {
-      "count": 0.0,
-      "mean": NaN,
-      "std": NaN,
-      "min": NaN,
-      "25%": NaN,
-      "50%": NaN,
-      "75%": NaN,
-      "max": NaN,
-      "variance": NaN,
-      "skewness": NaN,
-      "kurtosis": NaN
-    },
-    {
-      "count": 5.0,
-      "mean": 77434.2,
-      "std": 1584.1602507322293,
-      "min": 75224.0,
-      "25%": 77039.0,
-      "50%": 77083.0,
-      "75%": 78411.0,
-      "max": 79414.0,
-      "variance": 2509563.6999999997,
-      "skewness": -0.23160212178205414,
-      "kurtosis": -0.025850139273137174
-    },
-    {
-      "count": 4.0,
-      "mean": 111.75,
-      "std": 100.98968594201423,
-      "min": 16.0,
-      "25%": 28.75,
-      "50%": 115.5,
-      "75%": 198.5,
-      "max": 200.0,
-      "variance": 10198.916666666666,
-      "skewness": -0.024142332711215103,
-      "kurtosis": -5.856882384759076
-    },
-    {
-      "count": 5.0,
-      "mean": 1007921.0,
-      "std": 588206.1902585691,
-      "min": 133110.0,
-      "25%": 662108.0,
-      "50%": 1391139.0,
-      "75%": 1398475.0,
-      "max": 1454773.0,
-      "variance": 345986522258.5,
-      "skewness": -1.0354998806925773,
-      "kurtosis": -0.8504410983294273
-    },
-    {
-      "count": 0.0,
-      "mean": NaN,
-      "std": NaN,
-      "min": NaN,
-      "25%": NaN,
-      "50%": NaN,
-      "75%": NaN,
-      "max": NaN,
-      "variance": NaN,
-      "skewness": NaN,
-      "kurtosis": NaN
-    }
-  ],
-  "categorical_summary": {
-    "Operation Name": {
-      "unique_count": 5,
-      "top_values": {
-        "2nd Step Daycare & Learning Center": 1,
-        "5 Little Ducklings": 1,
-        "A Bar Z Ponderosa": 1,
-        "A Beautiful Child Development Center": 1,
-        "1 on 1 Childcare Academy": 1
-      }
-    },
-    "Address": {
-      "unique_count": 5,
-      "top_values": {
-        "4255 S R L THORNTON FWY": 1,
-        "14649 BEECHNUT ST": 1,
-        "4901 BURNEY DR": 1,
-        "3502 SLIDE RD A25": 1,
-        "11925 GLOGER ST": 1
-      }
-    },
-    "City": {
-      "unique_count": 4,
-      "top_values": {
-        "HOUSTON": 2,
-        "DALLAS": 1,
-        "CORPUS CHRISTI": 1,
-        "LUBBOCK": 1
-      }
-    },
-    "State": {
-      "unique_count": 1,
-      "top_values": {
-        "TX": 5
-      }
-    },
-    "County": {
-      "unique_count": 4,
-      "top_values": {
-        "HARRIS": 2,
-        "DALLAS": 1,
-        "NUECES": 1,
-        "LUBBOCK": 1
-      }
-    },
-    "Phone": {
-      "unique_count": 5,
-      "top_values": {
-        "214-372-2800": 1,
-        "281-988-6723": 1,
-        "361-992-7681": 1,
-        "806-701-4022": 1,
-        "832-295-3525": 1
-      }
-    },
-    "Type": {
-      "unique_count": 1,
-      "top_values": {
-        "Licensed Center - Child Care Program": 5
-      }
-    },
-    "Status": {
-      "unique_count": 1,
-      "top_values": {
-        "Full Permit": 4
-      }
-    },
-    "Issue Date": {
-      "unique_count": 4,
-      "top_values": {
-        "2010-11-05": 1,
-        "1994-09-16": 1,
-        "2023-04-27": 1,
-        "2022-07-01": 1
-      }
-    },
-    "Email Address": {
-      "unique_count": 4,
-      "top_values": {
-        "daycare2ndstep@outlook.com": 1,
-        "abarzponderosa@sbcglobal.net": 1,
-        "mrds.abc@yahoo.com": 1,
-        "1on1childcareacademy@gmail.com": 1
-      }
-    },
-    "Infant": {
-      "unique_count": 2,
-      "top_values": {
-        "Y": 4,
-        "N": 1
-      }
-    },
-    "Toddler": {
-      "unique_count": 2,
-      "top_values": {
-        "Y": 4,
-        "N": 1
-      }
-    },
-    "Preschool": {
-      "unique_count": 2,
-      "top_values": {
-        "Y": 4,
-        "N": 1
-      }
-    },
-    "School": {
-      "unique_count": 2,
-      "top_values": {
-        "Y": 4,
-        "N": 1
-      }
-    },
-    "_source_file": {
-      "unique_count": 1,
-      "top_values": {
-        "Technical Exercise Data.xlsx": 5
-      }
-    },
-    "_source_sheet": {
-      "unique_count": 1,
-      "top_values": {
-        "source3": 5
-      }
-    }
-  },
-  "duplicate_rows": 0
-}
-```
-
-
 ## PREPARE WORK
 
 Follow these steps to analyze the source data and plan transformations:
 
-1. **Understand Source Columns**  
-   - Look at each source column and decide which target column it corresponds to.  
+1. **Understand Source Columns**
+   - Look at each source column and decide which target column it corresponds to.
    - Example: A column with values like "Licensed", "Lapsed", "Suspended" likely maps to "license_status".
 
-2. **Infer Target Values from Source Data**  
-   - Check the actual values in the source column to figure out the type of transformation needed.  
+2. **Infer Target Values from Source Data**
+   - Check the actual values in the source column to figure out the type of transformation needed.
    - Example: If a column has full state names ("California", "Texas"), map them to 2-letter codes ("CA", "TX").
 
-3. **Use Metadata for Extra Context**  
-   - Look at metadata like data types, unique values, missing counts, and top values.  
-   - Example: If the "Phone" column has different formats, plan a rule to normalize all numbers to XXX-XXX-XXXX.  
+3. **Use Metadata for Extra Context**
+   - Look at metadata like data types, unique values, missing counts, and top values.
+   - Example: If the "Phone" column has different formats, plan a rule to normalize all numbers to XXX-XXX-XXXX.
 
-4. **Plan Transformations**  
-   - Decide the transformations needed for each target column: cleaning, normalization, formatting, or extracting numeric values.  
+4. **Plan Transformations**
+   - Decide the transformations needed for each target column: cleaning, normalization, formatting, or extracting numeric values.
    - Include regex, mappings, and conditional rules where appropriate.
 
+## OUTPUT FORMAT (EXACT JSON)
 
+Return ONLY this structure:
 
-## OUTPUT FORMAT (STRICT JSON)
-
-Return ONLY a valid JSON object with this EXACT structure:
-
-```json
 {
   "mappings": {
-    "company": "Facility_Name",
-    "facility_type": "Type",
-    "address1": "Street_Address",
-    "city": "City",
-    "state": "State",
-    "zip": "Zip_Code",
-    "phone": "Contact_Phone",
-    "email": "Email_Address"
+    "source_column_name": "target_column_name",
+    ...
   },
   "transformations": {
-    "phone_format": {
-      "target_column": "phone",
-      "source_column": "Contact_Phone",
-      "regex": "(\\d{3})\\D*(\\d{3})\\D*(\\d{4})",
-      "format": "\\1-\\2-\\3"
+    "rule_name": {
+      "target_column": "target_column_name",
+      "source_column": "source_column_name",     // optional
+      "regex": "pattern_with_double_backslashes",
+      "format": "\\1-\\2-\\3",               // optional, requires regex
+      "mapping": { "old": "new", ... },           // optional
+      "condition": "regex_pattern",               // optional
+      "value": "fixed_value"                      // optional
     },
-    "state_standardize": {
-      "target_column": "state",
-      "source_column": "State",
-      "mapping": {
-        "California": "CA",
-        "New York": "NY",
-        "Texas": "TX",
-        "Florida": "FL"
-      }
-    },
-    "license_status_normalize": {
-      "target_column": "license_status",
-      "source_column": "License_Status",
-      "mapping": {
-        "Licensed": "Active",
-        "Valid": "Active",
-        "Lapsed": "Expired",
-        "Suspended": "Revoked"
-      }
-    }
+    ...
   },
   "settings": {
     "case_sensitive": false,
     "skip_empty_values": true,
-    "log_unmatched_rules": false
+    "trim_whitespace": true
   },
-  "confidence": 0.95
+  "confidence": 0.93
 }
-```
-
-## REQUIRED TRANSFORMATION RULES
-
-Generate rules for these fields (if source columns exist):
-
-### 1. phone_format
-**Purpose**: SMS notifications for emergencies, billing alerts, and daily updates
-**Logic**: Extract digits, format as XXX-XXX-XXXX for standard US dialing
-**Regex**: `"(\\d{3})\\D*(\\d{3})\\D*(\\d{4})"`
-**Format**: `"\\1-\\2-\\3"`
-
-### 2. state_standardize
-**Purpose**: Determines state-specific licensing requirements, subsidy agency routing, and tax calculations
-**Logic**: Map full state names to 2-letter codes
-**Required States**: CA, NY, TX, FL, IL, OK, PA, OH, GA, NC (add any states found in sample data)
-
-### 3. license_status_normalize
-**Purpose**: Controls enrollment permissions and compliance monitoring
-**Logic**: Normalize to standard status values: Active, Inactive, Expired, Pending, Revoked, Probation
-**Common Mappings**:
-  - "Licensed", "Valid", "Current", "Good Standing" → "Active"
-  - "Lapsed", "Past Due", "Delinquent" → "Expired"
-  - "Suspended", "On Hold" → "Revoked"
-  - "Application Submitted", "Under Review" → "Pending"
-  - "Conditional", "Monitored" → "Probation"
-
-### 4. capacity_extract
-**Purpose**: Licensed capacity determines maximum enrollment and revenue potential
-**Logic**: Extract numeric value from text fields
-**Regex**: `"(\\d+)\\s*(?:children|kids|child|spaces|capacity|enrollment)"`
-
-### 5. email_validate
-**Purpose**: Primary communication channel (95% of parent engagement)
-**Logic**: Validate format with regex, lowercase domain for consistency
-**Regex**: `"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"`
-
-### 6. zip_format
-**Purpose**: Determines state subsidy eligibility, sales tax rates, and geographic reporting
-**Logic**: Standardize to 5-digit or ZIP+4 format
-**Regex**: `"^(\\d{5})(?:-?(\\d{4}))?$"`
-
-### 7. address_clean
-**Purpose**: Emergency services routing, mail delivery for tax documents
-**Logic**: Trim spaces, standardize abbreviations (St→Street, Ave→Avenue, Rd→Road, Blvd→Boulevard)
-
-## CRITICAL JSON RULES
-
-🚨 **MANDATORY REQUIREMENTS:**
-
-1. **Return ONLY the JSON object** - no markdown, no explanations, no code fences
-2. **All regex patterns MUST use double backslashes**: `\\d` not `\d`
-3. **All strings MUST be double-quoted**: `"value"` not `'value'`
-4. **All keys MUST be double-quoted**: `{"key": "value"}`
-5. **Confidence MUST be a number between 0.0 and 1.0**
-6. **NO trailing commas**: `{"key": "value"}` not `{"key": "value",}`
-7. **Ensure valid JSON syntax** - check commas, brackets, quotes
-8. **Map ALL available source columns** to their best-matching target columns
-9. **Generate transformation rules ONLY for columns that exist in source data**
-
 
 ## 🔒 TRANSFORMATION RULE SCHEMA (STRICT ENGINE COMPATIBILITY)
 
@@ -1780,43 +1715,6 @@ Before submitting transformation rules, verify:
 * Fixed execution order: regex → condition → mapping
 
 **Remember:** If transformation cannot be expressed within these constraints, omit it. The engine is designed for data normalization, not complex business logic.
-
-
-## DECISION PROTOCOL
-
-1. **If sample data shows the pattern**: Generate the specific rule based on actual values
-2. **If sample data is ambiguous but column exists**: Generate a reasonable default rule with common ECE mappings
-3. **If column is missing**: OMIT the rule entirely (do not generate placeholder rules)
-4. **NEVER ruminate**: Make a decision in ≤2 reasoning steps and move on
-
-## EXAMPLE REGEX PATTERNS (COPY THESE EXACTLY)
-
-**Phone Number:**
-```json
-"regex": "(\\d{3})\\D*(\\d{3})\\D*(\\d{4})",
-"format": "\\1-\\2-\\3"
-```
-
-**Email:**
-```json
-"regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-```
-
-**ZIP Code:**
-```json
-"regex": "^(\\d{5})(?:-?(\\d{4}))?$",
-"format": "\\1-\\2"
-```
-
-**Capacity:**
-```json
-"regex": "(\\d+)\\s*(?:children|kids|child|spaces|capacity)"
-```
-
-**Digits Only:**
-```json
-"regex": "\\d+"
-```
 
 ## FINAL INSTRUCTION
 
