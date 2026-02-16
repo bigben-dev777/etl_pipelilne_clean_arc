@@ -16,7 +16,6 @@ from src.transform.normalizers import (
     CountyNormalizer,
     EmailValidator,
     FacilityTypeNormalizer,
-    LicenseNumberExtractor,
     LicenseStatusNormalizer,
     LicenseTypeNormalizer,
     MinMaxAgeNormalizer,
@@ -64,7 +63,6 @@ class TransformationEngine:
             "capacity": CapacityNormalizer(),
             "license_status": LicenseStatusNormalizer(),
             "license_type": LicenseTypeNormalizer(),
-            "license_number": LicenseNumberExtractor(),
             "facility_type": FacilityTypeNormalizer(),
             "email": EmailValidator(),
             "website": WebsiteNormalizer(),
@@ -133,8 +131,6 @@ class TransformationEngine:
 
         # Transform each target column
         for target_col in target_columns:
-            logger.debug(f"Processing target column: {target_col}")
-
             # Get the mapped source column (if any)
             mapped_source_col = column_mapping.get(target_col)
 
@@ -166,9 +162,6 @@ class TransformationEngine:
         # Step 1: Copy source column if it exists and is mapped
         if source_col and source_col in df.columns:
             values = df[source_col].copy()
-            logger.debug(
-                f"Copied source column '{source_col}' to target '{target_col}'"
-            )
 
         # Step 2: Apply YAML business logic rules (this is the main transformation)
         values = self._apply_yaml_rules(
@@ -182,48 +175,42 @@ class TransformationEngine:
 
         # Step 3: Handle special parsing cases for composite fields
         # These handle cases where one source column maps to multiple target columns
-        # has_yaml_rules = any(
-        #     rule.get("target_column") == target_col for rule in transformations.values()
-        # )
+        has_yaml_rules = any(
+            rule.get("target_column") == target_col for rule in transformations.values()
+        )
 
-        # if not has_yaml_rules:
-        #     # Name parsing: Extract first_name/last_name from full name field
-        #     if target_col in ["first_name", "last_name"] and source_col:
-        #         if source_col in df.columns:
-        #             values = df[source_col].apply(
-        #                 lambda x: self._extract_name_part(x, target_col)
-        #             )
-        #             logger.debug(f"Applied built-in name parser for '{target_col}'")
+        if not has_yaml_rules:
+            # Name parsing: Extract first_name/last_name from full name field
+            if target_col in ["first_name", "last_name"] and source_col:
+                if source_col in df.columns:
+                    values = df[source_col].apply(
+                        lambda x: self._extract_name_part(x, target_col)
+                    )
 
-        #     # Age parsing: Extract min_age/max_age/ages_served from age range field
-        #     elif target_col in ["min_age", "max_age", "ages_served"] and source_col:
-        #         if source_col in df.columns:
-        #             values = df[source_col].apply(
-        #                 lambda x: self._extract_age_part(x, target_col)
-        #             )
-        #             logger.debug(f"Applied built-in age parser for '{target_col}'")
+            # Age parsing: Extract min_age/max_age/ages_served from age range field
+            elif target_col in ["min_age", "max_age", "ages_served"] and source_col:
+                if source_col in df.columns:
+                    values = df[source_col].apply(
+                        lambda x: self._extract_age_part(x, target_col)
+                    )
 
-        #     # License field extraction: Extract from 'Type License' composite field
-        #     elif (
-        #         target_col in ["license_type", "license_number", "facility_type"]
-        #         and source_col
-        #     ):
-        #         if source_col in df.columns:
-        #             values = df[source_col].apply(
-        #                 lambda x: self._extract_license_field(x, target_col)
-        #             )
-        #             logger.debug(f"Applied license field extractor for '{target_col}'")
+            # License field extraction: Extract from 'Type License' composite field
+            elif target_col in ["license_type", "facility_type"] and source_col:
+                if source_col in df.columns:
+                    values = df[source_col].apply(
+                        lambda x: self._extract_license_field(x, target_col)
+                    )
 
-        #     # Address parsing: Parse combined address into components
-        #     elif (
-        #         target_col in ["address1", "address2", "city"]
-        #         and source_config
-        #         and source_col
-        #     ):
-        #         values = self._parse_address_column(
-        #             df, source_col, target_col, source_config
-        #         )
-        #         logger.debug(f"Applied address parser for '{target_col}'")
+            # Address parsing: Parse combined address into components
+            elif (
+                target_col in ["address1", "address2", "city"]
+                and source_config
+                and source_col
+            ):
+                values = self._parse_address_column(
+                    df, source_col, target_col, source_config
+                )
+                print("💥" * 10)
 
         return values
 
@@ -255,16 +242,8 @@ class TransformationEngine:
             if rule.get("target_column") == target_col
         }
 
-        if matching_rules:
-            logger.info(
-                f"Found {len(matching_rules)} rules for target column '{target_col}': {list(matching_rules.keys())}"
-            )
-        else:
-            logger.debug(f"No YAML rules found for target column '{target_col}'")
-
         # Apply each matching rule
         for rule_name, rule in matching_rules.items():
-            logger.debug(f"Applying rule '{rule_name}' to target '{target_col}'")
 
             # Get source data - try multiple strategies
             rule_source = rule.get("source_column")
@@ -273,25 +252,14 @@ class TransformationEngine:
             # Strategy 1: Use rule's specified source column
             if rule_source:
                 source_data = self._find_source_column(df, rule_source, case_sensitive)
-                if source_data is not None:
-                    logger.debug(
-                        f"Rule '{rule_name}': Using rule source column '{rule_source}'"
-                    )
 
             # Strategy 2: Use mapped source column
             if source_data is None and source_col:
                 source_data = self._find_source_column(df, source_col, case_sensitive)
-                if source_data is not None:
-                    logger.debug(
-                        f"Rule '{rule_name}': Using mapped source column '{source_col}'"
-                    )
 
             # Strategy 3: Use current values (for chained transformations)
             if source_data is None and values is not None and not values.isna().all():
                 source_data = values.copy()
-                logger.debug(
-                    f"Rule '{rule_name}': Using current values for chained transformation"
-                )
 
             # If we still don't have source data, skip this rule
             if source_data is None:
@@ -306,7 +274,6 @@ class TransformationEngine:
             try:
                 transformed = self._apply_combined_rule(
                     source_data,
-                    values,
                     rule,
                     case_sensitive,
                     skip_empty,
@@ -319,11 +286,9 @@ class TransformationEngine:
                 mask = transformed.notna()
                 if mask.any():
                     values.loc[mask] = transformed.loc[mask]
-                    logger.info(
+                    logger.debug(
                         f"Rule '{rule_name}': Transformed {mask.sum()} values for '{target_col}'"
                     )
-                else:
-                    logger.debug(f"Rule '{rule_name}': No values transformed")
 
             except Exception as e:
                 logger.error(f"Rule '{rule_name}' failed: {e}", exc_info=True)
@@ -352,9 +317,6 @@ class TransformationEngine:
         if not case_sensitive:
             for col in df.columns:
                 if col.lower() == column_name.lower():
-                    logger.debug(
-                        f"Found column '{col}' matching '{column_name}' (case-insensitive)"
-                    )
                     return df[col].copy()
 
         return None
@@ -362,7 +324,6 @@ class TransformationEngine:
     def _apply_combined_rule(
         self,
         source_data: pd.Series,
-        values: pd.Series,
         rule: Dict,
         case_sensitive: bool,
         skip_empty: bool,
@@ -390,42 +351,27 @@ class TransformationEngine:
 
         # Step 1: Apply regex if present
         if "regex" in rule:
-            before_count = intermediate.notna().sum()
             intermediate = self._apply_regex_extraction(
                 intermediate, rule, case_sensitive, skip_empty
             )
             after_count = intermediate.notna().sum()
             steps_applied.append(f"regex ({after_count} values)")
-            if log_unmatched:
-                logger.debug(
-                    f"Rule '{rule_name}': Applied regex transformation ({before_count} → {after_count} values)"
-                )
 
         # Step 2: Apply condition if present
         if "condition" in rule:
-            before_count = intermediate.notna().sum()
             intermediate = self._apply_condition_filter(
                 intermediate, rule, case_sensitive, skip_empty
             )
             after_count = intermediate.notna().sum()
             steps_applied.append(f"condition ({after_count} values)")
-            if log_unmatched:
-                logger.debug(
-                    f"Rule '{rule_name}': Applied condition filter ({before_count} → {after_count} values)"
-                )
 
         # Step 3: Apply mapping if present
         if "mapping" in rule:
-            before_count = intermediate.notna().sum()
             intermediate = self._apply_mapping_substitution(
                 intermediate, rule, case_sensitive, skip_empty
             )
             after_count = intermediate.notna().sum()
             steps_applied.append(f"mapping ({after_count} values)")
-            if log_unmatched:
-                logger.debug(
-                    f"Rule '{rule_name}': Applied mapping substitution ({before_count} → {after_count} values)"
-                )
 
         # Step 4: Apply value assignment if present (standalone or after condition)
         if "value" in rule and "condition" not in rule:
@@ -434,11 +380,9 @@ class TransformationEngine:
                 [rule["value"]] * len(intermediate), index=intermediate.index
             )
             steps_applied.append(f"value assignment")
-            if log_unmatched:
-                logger.debug(f"Rule '{rule_name}': Applied direct value assignment")
 
         if steps_applied and log_unmatched:
-            logger.info(
+            logger.debug(
                 f"Rule '{rule_name}': Applied steps: {' → '.join(steps_applied)}"
             )
 
@@ -459,7 +403,7 @@ class TransformationEngine:
 
         def extract(x):
             if pd.isna(x) or (skip_empty and str(x).strip() == ""):
-                return None
+                return ""
             match = pattern.search(str(x))
             if match:
                 if "format" in rule:
@@ -472,7 +416,7 @@ class TransformationEngine:
                 # Return first group if exists, otherwise full match
                 result = match.group(1) if match.groups() else match.group(0)
                 return result.strip() if result else None
-            return None
+            return ""
 
         return source_data.apply(extract)
 
@@ -534,74 +478,11 @@ class TransformationEngine:
         mapped_count = result.notna().sum()
         total_count = source_data.notna().sum()
         if total_count > 0:
-            logger.debug(
+            logger.info(
                 f"Mapping matched {mapped_count}/{total_count} values ({100*mapped_count/total_count:.1f}%)"
             )
 
         return result
-
-    def _apply_normalizers(self, values: pd.Series, target_col: str) -> pd.Series:
-        """Apply built-in normalizers based on target column type to canonical format."""
-
-        # Direct normalizer mapping
-        normalizer_map = {
-            # Contact info (E164 format)
-            "phone": "phone",
-            "phone2": "phone2",
-            # Location (USPS codes, Title Case)
-            "state": "state",
-            "zip": "zip",
-            "county": "county",
-            # Address (Title Case, standardized)
-            "address1": "address1",
-            "address2": "address2",
-            # Names (Title Case)
-            "first_name": "first_name",
-            "last_name": "last_name",
-            # Age fields (AGE_BUCKET_ENUM or INTEGER_YEARS)
-            "ages_served": "ages_served",
-            "min_age": "min_age",
-            "max_age": "max_age",
-            # Capacity (integer)
-            "capacity": "capacity",
-            # License fields (canonical enums)
-            "license_status": "license_status",
-            "license_type": "license_type",
-            "license_number": "license_number",
-            "facility_type": "facility_type",
-            # Communication (lowercase, https)
-            "email": "email",
-            "website": "website",
-            "website_address": "website_address",
-            # Boolean
-            "is_duplicate": "is_duplicate",
-        }
-
-        normalizer_key = normalizer_map.get(target_col)
-        if normalizer_key and normalizer_key in self.normalizers:
-            normalizer = self.normalizers[normalizer_key]
-            logger.debug(
-                f"Applying built-in normalizer '{normalizer_key}' to '{target_col}' (canonical format)"
-            )
-
-            # Handle special cases for name and age fields
-            if target_col in ["first_name", "last_name"]:
-                # NameNormalizer returns a dict, extract the specific part
-                values = values.apply(
-                    lambda x: normalizer.normalize(x)[0].get(target_col) if x else None
-                )
-            elif target_col in ["min_age", "max_age", "ages_served"]:
-                # Age normalizers return specific types
-                values = values.apply(
-                    lambda x: normalizer.normalize(x)[0] if x else None
-                )
-            else:
-                # Standard normalizers return single value
-                values = values.apply(
-                    lambda x: normalizer.normalize(x)[0] if x else None
-                )
-
-        return values
 
     def _extract_name_part(self, value: Any, part: str) -> Optional[str]:
         """
@@ -611,7 +492,7 @@ class TransformationEngine:
         if not value or pd.isna(value):
             return None
 
-        result, metadata = self.normalizers["name"].normalize(value)
+        result, _ = self.normalizers["name"].normalize(value)
 
         # result is a dict with 'first_name' and 'last_name' keys
         return result.get(part)
@@ -644,7 +525,7 @@ class TransformationEngine:
 
         Args:
             value: Source value (e.g., 'CHILD CARE FAMILY - K820015716')
-            field_type: One of 'license_type', 'license_number', 'facility_type'
+            field_type: One of 'license_type',  'facility_type'
 
         Returns:
             Canonical formatted value or None
@@ -654,7 +535,6 @@ class TransformationEngine:
 
         normalizer_map = {
             "license_type": self.normalizers.get("license_type"),
-            "license_number": self.normalizers.get("license_number"),
             "facility_type": self.normalizers.get("facility_type"),
         }
 
@@ -699,12 +579,3 @@ class TransformationEngine:
             )
 
         return pd.Series([None] * len(df), index=df.index)
-
-    def _basic_clean(self, value: Any) -> Any:
-        """Basic string cleaning."""
-        if pd.isna(value):
-            return None
-        if isinstance(value, str):
-            cleaned = " ".join(value.split())
-            return cleaned if cleaned else None
-        return value

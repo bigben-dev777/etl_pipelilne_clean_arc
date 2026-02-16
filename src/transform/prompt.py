@@ -224,7 +224,7 @@ Follow these steps to analyze the source data and plan transformations:
    - Example: If the "Phone" column has different formats, plan a rule to normalize all numbers to XXX-XXX-XXXX.  
 
 4. **Plan Transformations**  
-   - Decide the transformations needed for each target column: cleaning, normalization, formatting, or extracting numeric values.  
+   - Decide the transformations needed for each target column: cleaning, normalization, formatting, or extracting numeric values. 
    - Include regex, mappings, and conditional rules where appropriate."""
 
     OUTPUT_FORMAT = """## OUTPUT FORMAT (STRICT JSON)
@@ -283,6 +283,7 @@ Return ONLY a valid JSON object with this EXACT structure:
     TRANSFORMATION_RULES = """## REQUIRED TRANSFORMATION RULES
 
 Generate rules for these fields (if source columns exist):
+**HAVE TO MAKE TRANSFORMATION FOR TARGET COLUMNS IF THAT MAPPING IS NOT DIRECT MAPPING.**
 
 ### 1. phone_format
 **Purpose**: SMS notifications for emergencies, billing alerts, and daily updates
@@ -1063,17 +1064,10 @@ Before submitting transformation rules, verify:
 **Requirements:** Required field
 
 **Validation Rules:**
-- Must contain street number and street name at minimum
-- Should NOT contain city, state, or ZIP code
-- Should NOT contain secondary address information (use address2 for that)
-- Must be trimmed of leading/trailing whitespace
-- Directional indicators (N, S, E, W, NE, etc.) should be included if part of the address
-- Street type abbreviations (St, Ave, Rd, Blvd) are acceptable
+- Should NOT contain ZIP code
 
 **Examples:**
 - Valid: "123 Main Street", "456 Oak Ave", "789 N Elm Blvd"
-- Invalid: "123 Main St, Suite 200" (suite info belongs in address2), "123 Main St, Boston, MA" (city/state belong in separate fields)
-
 ---
 
 ## address2
@@ -1084,15 +1078,11 @@ Before submitting transformation rules, verify:
 **Requirements:** Nullable (optional)
 
 **Validation Rules:**
-- Should contain only suite, unit, apartment, floor, building, or room numbers
-- Common prefixes: "Suite", "Unit", "Apt", "Building", "Floor", "Room", "#"
-- Can be abbreviated (e.g., "Ste" for Suite, "Bldg" for Building)
-- Should be NULL or empty string if no secondary address exists
-- Must be trimmed of leading/trailing whitespace
+- ONLY If source data has secondary address information, it should be stored here
 
 **Examples:**
 - Valid: "Suite 200", "Unit B", "Apt 3", "Building 2", "Floor 3", "#205"
-- Invalid: "123 Main Street" (belongs in address1)
+- Invalid: "123 Main Street"
 
 ---
 
@@ -1211,6 +1201,8 @@ Before submitting transformation rules, verify:
 **Requirements:** Nullable (optional)
 
 **Validation Rules:**
+- YOU DON'T HAVE TO USE THIS FIELD UNLESS SOURCE DATA INCLUDES A SECONDARY PHONE NUMBER
+- YOU HAVE TO USE **DIFFERENT COLUMN MAPPING** WITH phone COLUMN IN SOURCE DATA
 - Same normalization rules as phone field
 - Should be used for alternate contact numbers (e.g., director's cell, fax, emergency line)
 - Must be different from phone field value
@@ -1252,6 +1244,7 @@ Before submitting transformation rules, verify:
 **Requirements:** Nullable (optional)
 
 **Validation Rules:**
+- YOU DON'T HAVE TO USE THIS FIELD UNLESS SOURCE DATA INCLUDES A WEBSITE URL
 - Should include URL scheme (protocol): http:// or https://
 - If source data lacks scheme, prepend "https://" by default
 - Should be a complete, valid URL
@@ -1274,6 +1267,7 @@ Before submitting transformation rules, verify:
 **Requirements:** Nullable (optional)
 
 **Validation Rules:**
+- THIS FIELD CONTENT MUST LIKE HUMEN'S NAME, NOT COMPANY
 - Should NOT include titles such as Mr., Mrs., Ms., Dr., Rev., etc.
 - Should NOT include middle names or initials (unless culturally appropriate)
 - Should be properly capitalized (title case)
@@ -1401,7 +1395,7 @@ Before submitting transformation rules, verify:
 **Requirements:** Optional but strongly recommended
 
 **Validation Rules:**
-- Should be normalized to controlled vocabulary when possible
+- SHOULD be NORMARLIZED to controlled vocabulary when possible
 - Common standard values: "Licensed", "Active", "Registered", "Probationary", "Suspended", "Revoked", "Expired", "Closed", "Pending", "Exempt"
 - Should be stored in title case for consistency
 - Should reflect the most current status available from source data
@@ -1417,7 +1411,7 @@ Before submitting transformation rules, verify:
 ## license_number
 **Description:** Official state-issued license, permit, or credential identification number.
 
-**Data Type:** VARCHAR
+**Data Type:** VARCHAR(consistant with NUMBER AND SYMBOLS, OR SOMETIMES WITH CAPITAL LETTERS)
 
 **Requirements:** Required if license_status indicates an active license (e.g., "Licensed", "Active", "Probationary")
 

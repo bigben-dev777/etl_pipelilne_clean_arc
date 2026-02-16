@@ -1170,38 +1170,3 @@ class BooleanNormalizer(BaseNormalizer):
             "error": "unrecognized_boolean",
             "original": value,
         }
-
-
-class LicenseNumberExtractor(BaseNormalizer):
-    """Extractor for license number from 'Type License' field."""
-
-    def normalize(self, value: Any) -> Tuple[Optional[str], Dict[str, Any]]:
-        """
-        Extract license number from 'Type License' values.
-        Schema regex: -\\s*([A-Z0-9-]+)$
-
-        Args:
-            value: Type License string
-
-        Returns:
-            Tuple of (license_number, metadata) or (None, metadata)
-        """
-        if not value or (HAS_PANDAS and pd.isna(value)):
-            return None, {"valid": False, "error": "empty_value"}
-
-        type_str = str(value).strip()
-
-        # Schema regex: -\s*([A-Z0-9-]+)$
-        match = re.search(r"-\s*([A-Z0-9-]+)$", type_str.upper())
-
-        if match:
-            return match.group(1), {
-                "valid": True,
-                "original": value,
-            }
-
-        return None, {
-            "valid": False,
-            "error": "no_license_number_found",
-            "original": value,
-        }

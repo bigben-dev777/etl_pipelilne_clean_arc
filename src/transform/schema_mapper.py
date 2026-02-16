@@ -109,7 +109,7 @@ class SchemaMapper:
 
         # Step 1: Compute schema fingerprint
         schema_fingerprint = compute_schema_fingerprint(list(df.columns))
-        logger.debug(f"Schema fingerprint: {schema_fingerprint[:16]}...")
+        logger.info(f"Schema fingerprint: {schema_fingerprint[:16]}...")
 
         # Step 2: Get or determine source configuration
         if source_config is None:

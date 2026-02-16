@@ -63,6 +63,7 @@ def configure_logging(
 
 def get_logger(name: str):
     """Get a configured logger instance."""
+    logging.basicConfig(level=logging.INFO)
     if HAS_STRUCTLOG:
         return structlog.get_logger(name)
     return logging.getLogger(name)

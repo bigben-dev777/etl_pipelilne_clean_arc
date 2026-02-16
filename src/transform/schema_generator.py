@@ -169,7 +169,6 @@ class SchemaGenerator:
 
         if not json_text:
             raise ValueError("Could not extract JSON from LLM response")
-
         logger.debug(f"Extracted JSON length: {len(json_text)} characters")
 
         # Step 2: Try parsing JSON
