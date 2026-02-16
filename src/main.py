@@ -20,7 +20,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from config.settings import get_settings
-from src.extract.csv_extractor import CSVExtractor, ExcelExtractor
+from src.extract.csv_extractor import CSVExtractor
 from src.extract.source_registry import SourceRegistry, get_source_config
 from src.load.sqlite_loader import SQLiteLoader
 from src.transform.ai.facility_classifier import FacilityClassifier
@@ -71,8 +71,18 @@ class ETLPipeline:
 
         if self.use_ai:
             try:
-                self.llm_client = get_llm_client(provider=self.settings.LLM_PROVIDER)
-                self.facility_classifier = FacilityClassifier(self.llm_client)
+                self.llm_resolution_model = self.settings.LLM_MODEL_RESOLUTION
+                self.llm_classification_model = self.settings.LLM_MODEL_CLASSIFICATION
+                self.llm_client = get_llm_client(
+                    provider=self.settings.LLM_PROVIDER, model=self.llm_resolution_model
+                )
+                self.llm_classification_client = get_llm_client(
+                    provider=self.settings.LLM_PROVIDER,
+                    model=self.llm_classification_model,
+                )
+                self.facility_classifier = FacilityClassifier(
+                    self.llm_classification_client
+                )
                 logger.info("AI/LLM features enabled")
             except Exception as e:
                 logger.warning(f"Could not initialize LLM client: {e}")
@@ -83,8 +93,7 @@ class ETLPipeline:
         self.schema_mapper = SchemaMapper(
             source_registry=self.source_registry,
             llm_client=self.llm_client,
-            use_ai_mapping=self.use_ai,
-            # logic_file=self.settings.SCHEMA_MAPPING_LOGIC_FILE,
+            use_ai=self.use_ai,
         )
         self.data_quality_scorer = DataQualityScorer()
         self.duplicate_detector = DuplicateDetector(
@@ -196,9 +205,53 @@ class ETLPipeline:
 
                 # Choose extractor based on file type
                 if file_path.suffix.lower() in [".xlsx", ".xls"]:
-                    extractor = ExcelExtractor(file_path)
+                    # Convert Excel sheets to CSV first
+                    excel_file = pd.ExcelFile(file_path)
+
+                    for sheet in excel_file.sheet_names:
+                        try:
+                            logger.info(
+                                f"Processing sheet '{sheet}' from {file_path.name}"
+                            )
+
+                            df_sheet = pd.read_excel(file_path, sheet_name=sheet)
+
+                            # Create temp CSV path
+                            csv_name = f"{file_path.stem}__{sheet}.csv"
+                            temp_csv_path = self.data_dir / csv_name
+
+                            # Save sheet as CSV
+                            df_sheet.to_csv(temp_csv_path, index=False)
+
+                            # Now use CSVExtractor
+                            extractor = CSVExtractor(temp_csv_path)
+                            df = extractor.extract()
+
+                            # Add metadata
+                            df["_source_file"] = file_path.name
+                            df["_source_sheet"] = sheet
+                            df["_extraction_time"] = datetime.now()
+
+                            raw_data[csv_name] = df
+
+                            logger.info(
+                                f"  Extracted {len(df)} rows from sheet '{sheet}'"
+                            )
+
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to process sheet '{sheet}' in {file_path.name}: {e}"
+                            )
+
+                    continue  # Skip normal CSV path handling
                 else:
                     extractor = CSVExtractor(file_path)
+                    df = extractor.extract()
+
+                    df["_source_file"] = file_path.name
+                    df["_extraction_time"] = datetime.now()
+
+                    raw_data[file_path.name] = df
 
                 df = extractor.extract()
 

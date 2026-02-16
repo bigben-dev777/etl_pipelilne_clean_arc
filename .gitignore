@@ -9,3 +9,5 @@ htmlcov
 cache
 
 **/*.csv
+
+vibe

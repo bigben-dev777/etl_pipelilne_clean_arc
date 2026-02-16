@@ -64,15 +64,22 @@ class OpenAIProvider(LLMProvider):
 
     def complete(self, prompt: str, max_tokens: int = 4000, **kwargs) -> str:
         """Send completion request to OpenAI."""
+        logger.info(f"🌐 Call OpenAI with model {self.model}")
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=self.temperature,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
             **kwargs,
         )
 
         self.total_tokens += response.usage.total_tokens
+        logger.info(
+            f"🚀    {self.client._base_url} - {self.model} - {self.temperature}"
+        )
+        logger.info(
+            f"🚀    OpenAI call successful: {response.usage.total_tokens} tokens used"
+        )
 
         return response.choices[0].message.content
 

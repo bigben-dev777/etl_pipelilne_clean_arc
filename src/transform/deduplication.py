@@ -97,18 +97,18 @@ class DuplicateDetector:
         logger.info(f"Found {result['is_duplicate'].sum()} exact duplicates")
 
         # Second pass: Fuzzy matching on non-duplicates
-        non_duplicate_mask = ~result["is_duplicate"]
-        non_duplicates = result[non_duplicate_mask].copy()
+        # non_duplicate_mask = ~result["is_duplicate"]
+        # non_duplicates = result[non_duplicate_mask].copy()
 
-        if len(non_duplicates) > 1:
-            fuzzy_matches = self._fuzzy_match_pass(non_duplicates)
+        # if len(non_duplicates) > 1:
+        #     fuzzy_matches = self._fuzzy_match_pass(non_duplicates)
 
-            for idx1, idx2, score in fuzzy_matches:
-                # Mark as duplicate
-                cluster_id = result.loc[idx1, "duplicate_cluster_id"]
-                result.at[idx2, "is_duplicate"] = True
-                result.at[idx2, "duplicate_cluster_id"] = cluster_id
-                clusters[cluster_id].append(idx2)
+        #     for idx1, idx2, score in fuzzy_matches:
+        #         # Mark as duplicate
+        #         cluster_id = result.loc[idx1, "duplicate_cluster_id"]
+        #         result.at[idx2, "is_duplicate"] = True
+        #         result.at[idx2, "duplicate_cluster_id"] = cluster_id
+        #         clusters[cluster_id].append(idx2)
 
         logger.info(
             f"Total duplicates after fuzzy matching: {result['is_duplicate'].sum()}"
@@ -118,7 +118,7 @@ class DuplicateDetector:
 
     def _fuzzy_match_pass(self, df: pd.DataFrame) -> List[Tuple[int, int, float]]:
         """
-        Perform fuzzy matching on company names and addresses.
+        Perform fuzzy matching on company names and addresses, handling None values.
 
         Args:
             df: DataFrame of non-duplicate records
@@ -129,26 +129,31 @@ class DuplicateDetector:
         matches = []
         indices = df.index.tolist()
 
-        # Pre-normalize for comparison
-        companies = (
-            df["company"].fillna("").astype(str).str.lower().str.strip().tolist()
-        )
-        addresses = (
-            df["address1"].fillna("").astype(str).str.lower().str.strip().tolist()
-        )
+        # Pre-normalize for comparison, handle None as empty string
+        companies = [
+            str(c).lower().strip() if c is not None else "" for c in df["company"]
+        ]
+        addresses = [
+            str(a).lower().strip() if a is not None else "" for a in df["address1"]
+        ]
 
         for i in range(len(indices)):
             for j in range(i + 1, len(indices)):
                 idx1, idx2 = indices[i], indices[j]
 
-                # Compare company names
-                company_sim = fuzz.ratio(companies[i], companies[j]) / 100
+                # Skip comparison if both fields are empty
+                if not companies[i] and not companies[j]:
+                    company_sim = 0.0
+                else:
+                    company_sim = fuzz.ratio(companies[i], companies[j]) / 100
 
-                # Compare addresses
-                address_sim = fuzz.ratio(addresses[i], addresses[j]) / 100
+                if not addresses[i] and not addresses[j]:
+                    address_sim = 0.0
+                else:
+                    address_sim = fuzz.ratio(addresses[i], addresses[j]) / 100
 
                 # Combined scoring
-                if company_sim >= self.fuzzy_threshold and address_sim >= 0.70:
+                if company_sim >= self.fuzzy_threshold and address_sim >= 0.90:
                     matches.append((idx1, idx2, (company_sim + address_sim) / 2))
                 elif company_sim >= 0.95:  # Very similar names
                     matches.append((idx1, idx2, company_sim))
