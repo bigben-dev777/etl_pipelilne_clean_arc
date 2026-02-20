@@ -1,33 +1,28 @@
-"""Schema mapping module for transforming source columns to target schema."""
+"""schema_mapper.py - Main schema mapping orchestrator (refactored)."""
 
-import logging
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-from rapidfuzz import fuzz
 
 from src.extract.source_registry import SourceConfig, SourceRegistry
-from src.transform.normalizers import (
-    AddressNormalizer,
-    AgeParser,
-    CapacityNormalizer,
-    LicenseStatusNormalizer,
-    NameNormalizer,
-    PhoneNormalizer,
-    StateNormalizer,
-    ZipNormalizer,
-)
+from src.transform.schema_cache import SchemaCacheManager
+from src.transform.schema_generator import SchemaGenerator
+from src.transform.transformation_engine import TransformationEngine
 from src.utils.hashing import compute_schema_fingerprint
+from src.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SchemaMapper:
-    """Maps source data columns to target schema with rule-based and AI-assisted mapping."""
+    """
+    Orchestrates schema mapping with caching and AI-assisted logic generation.
 
-    # Target schema columns
+    This refactored version combines mapping and logic generation into a single
+    LLM call to ensure consistency and reduce costs.
+    """
+
     TARGET_COLUMNS = [
         "company",
         "facility_type",
@@ -56,32 +51,35 @@ class SchemaMapper:
         self,
         source_registry: Optional[SourceRegistry] = None,
         llm_client: Optional[Any] = None,
-        use_ai_mapping: bool = True,
+        use_ai: bool = True,
+        cache_dir: Path = Path("cache/schemas"),
+        logic_file: Optional[Path] = Path("config/logic.yaml"),
     ):
         """
         Initialize the schema mapper.
 
         Args:
             source_registry: Registry of known source configurations
-            llm_client: LLM client for AI-assisted mapping
-            use_ai_mapping: Whether to use AI for unknown schemas
+            llm_client: LLM client for AI-assisted operations
+            use_ai: Whether to use AI for mapping and logic generation
+            cache_dir: Directory for persistent caching
+            logic_file: Path to default business logic YAML
         """
         self.source_registry = source_registry or SourceRegistry()
         self.llm_client = llm_client
-        self.use_ai_mapping = use_ai_mapping
-        self._mapping_cache: Dict[str, Dict[str, str]] = {}
+        self.use_ai = use_ai
 
-        # Initialize normalizers
-        self.normalizers = {
-            "phone": PhoneNormalizer(),
-            "state": StateNormalizer(),
-            "zip": ZipNormalizer(),
-            "address": AddressNormalizer(),
-            "name": NameNormalizer(),
-            "age": AgeParser(),
-            "capacity": CapacityNormalizer(),
-            "license_status": LicenseStatusNormalizer(),
-        }
+        # Initialize modular components
+        self.cache_manager = SchemaCacheManager(cache_dir=cache_dir)
+
+        self.schema_generator = SchemaGenerator(
+            llm_client=llm_client if use_ai else None,
+            default_patterns=self._get_default_patterns(),
+        )
+
+        self.transformation_engine = TransformationEngine(logic_file=logic_file)
+
+        logger.info("SchemaMapper initialized with generation architecture")
 
     def map_dataframe(
         self,
@@ -92,9 +90,16 @@ class SchemaMapper:
         """
         Map a source DataFrame to the target schema.
 
+        Workflow:
+        1. Compute schema fingerprint
+        2. Check cache for existing mapping and logic
+        3. If not cached, generate both mapping and logic in one LLM call
+        4. Apply transformations
+        5. Cache results for future use
+
         Args:
             df: Source DataFrame
-            source_file: Path to source file (for metadata)
+            source_file: Path to source file
             source_config: Optional pre-determined source configuration
 
         Returns:
@@ -102,347 +107,114 @@ class SchemaMapper:
         """
         logger.info(f"Mapping {len(df)} rows from {source_file.name}")
 
-        # Get source configuration
+        # Step 1: Compute schema fingerprint
+        schema_fingerprint = compute_schema_fingerprint(list(df.columns))
+        logger.info(f"Schema fingerprint: {schema_fingerprint[:16]}...")
+
+        # Step 2: Get or determine source configuration
         if source_config is None:
             source_config = self.source_registry.get_source_for_file(source_file)
 
-        # Determine column mapping
-        if source_config and source_config.column_map:
-            column_mapping = self._apply_rule_mapping(df, source_config)
-        else:
-            column_mapping = self._infer_mapping(df)
+        # Step 3: Get or generate schema (mapping + logic)
+        column_mapping, transformations, settings = self._get_or_generate_schema(
+            df, schema_fingerprint, source_config
+        )
 
-        logger.debug(f"Column mapping: {column_mapping}")
+        logger.info(f"Column mapping: {len(column_mapping)} columns mapped")
+        logger.info(f"Business logic: {len(transformations)} transformation rules")
 
-        # Create target DataFrame
-        result = pd.DataFrame()
+        # Step 4: Apply transformations
+        result = self.transformation_engine.transform_dataframe(
+            df=df,
+            column_mapping=column_mapping,
+            target_columns=self.TARGET_COLUMNS,
+            schema_transformations=transformations,
+            schema_settings=settings,
+            source_config=source_config,
+        )
 
-        # Apply mappings and transformations
-        for target_col in self.TARGET_COLUMNS:
-            if target_col in column_mapping:
-                source_col = column_mapping[target_col]
-                result[target_col] = self._transform_column(
-                    df, source_col, target_col, source_config
-                )
-            else:
-                result[target_col] = None
-
-        # Add metadata columns
+        # Step 5: Add metadata
         result["source_file"] = source_file.name
         result["record_id"] = self._generate_record_ids(df, source_file)
 
-        logger.info(
-            f"Mapped to {len(result)} rows with {len(self.TARGET_COLUMNS)} columns"
-        )
+        logger.info(f"Successfully mapped to {len(result)} rows")
 
         return result
 
-    def _apply_rule_mapping(
-        self, df: pd.DataFrame, source_config: SourceConfig
-    ) -> Dict[str, str]:
-        """Apply rule-based column mapping from source configuration."""
-        mapping = {}
-
-        for key, value in source_config.column_map.items():
-            # Handle different config structures:
-            # 1. Specific source: {source_col: target_col} (both strings)
-            # 2. Default patterns: {target_col: [possible_names]} (list of patterns)
-
-            if isinstance(value, list):
-                # Default patterns structure: key is target_col, value is list of patterns
-                target_col = key
-                possible_names = value
-
-                # Find matching column in dataframe
-                for df_col in df.columns:
-                    df_col_lower = df_col.lower().strip()
-                    for pattern in possible_names:
-                        if (
-                            pattern.lower() in df_col_lower
-                            or df_col_lower == pattern.lower()
-                        ):
-                            mapping[target_col] = df_col
-                            break
-                    if target_col in mapping:
-                        break
-
-            elif isinstance(value, str):
-                # Specific source structure: key is source_col, value is target_col
-                source_col = key
-                target_col = value
-
-                # Handle special transformation directives
-                if target_col.startswith("_"):
-                    continue  # Will be handled during transformation
-
-                # Find matching column in dataframe (case-insensitive)
-                for df_col in df.columns:
-                    if df_col.lower().strip() == source_col.lower().strip():
-                        mapping[target_col] = df_col
-                        break
-
-        return mapping
-
-    def _infer_mapping(self, df: pd.DataFrame) -> Dict[str, str]:
+    def _get_or_generate_schema(
+        self,
+        df: pd.DataFrame,
+        schema_fingerprint: str,
+        source_config: Optional[SourceConfig],
+    ) -> Tuple[Dict[str, str], Dict, Dict]:
         """
-        Infer column mapping using fuzzy matching or AI.
-
-        Args:
-            df: Source DataFrame
+        Get cached schema or generate new  schema (mapping + logic).
 
         Returns:
-            Column mapping dictionary
+            Tuple of (column_mapping, transformations, settings)
         """
         # Check cache first
-        schema_fingerprint = compute_schema_fingerprint(list(df.columns))
-        if schema_fingerprint in self._mapping_cache:
-            logger.debug(f"Using cached mapping for schema {schema_fingerprint}")
-            return self._mapping_cache[schema_fingerprint]
-
-        # Try fuzzy matching
-        mapping = self._fuzzy_match_mapping(df)
-
-        # If AI mapping is enabled and we have an LLM client, use it
-        if (
-            self.use_ai_mapping
-            and self.llm_client
-            and len(mapping) < len(self.TARGET_COLUMNS) / 2
-        ):
-            ai_mapping = self._ai_assisted_mapping(df)
-            mapping.update(ai_mapping)
-
-        # Cache the result
-        self._mapping_cache[schema_fingerprint] = mapping
-
-        return mapping
-
-    def _fuzzy_match_mapping(self, df: pd.DataFrame) -> Dict[str, str]:
-        """Fuzzy match source columns to target columns."""
-        mapping = {}
-
-        # Get default patterns
-        default_config = self.source_registry.default_config
-        if not default_config or not default_config.column_map:
-            return mapping
-
-        patterns = default_config.column_map
-        threshold = 0.85
-
-        for target_col, possible_names in patterns.items():
-            best_match = None
-            best_score = 0
-
-            for source_col in df.columns:
-                source_lower = source_col.lower().strip()
-
-                # Direct match
-                if source_lower == target_col.lower():
-                    best_match = source_col
-                    best_score = 1.0
-                    break
-
-                # Check against patterns
-                for pattern in possible_names:
-                    score = fuzz.ratio(source_lower, pattern.lower()) / 100
-                    if score > best_score and score >= threshold:
-                        best_match = source_col
-                        best_score = score
-
-            if best_match:
-                mapping[target_col] = best_match
-
-        return mapping
-
-    def _ai_assisted_mapping(self, df: pd.DataFrame) -> Dict[str, str]:
-        """Use LLM to infer column mapping for unknown schemas."""
-        if not self.llm_client:
-            return {}
-
-        try:
-            # Get sample data
-            sample_data = df.sample(5).to_dict(orient="records")
-
-            # Build prompt
-            prompt = self._build_schema_mapping_prompt(list(df.columns), sample_data)
-
-            # Call LLM
-            response = self.llm_client.complete(prompt)
-
-            # Parse response
-            mapping = self._parse_llm_mapping_response(response)
-
-            logger.info(f"AI-assisted mapping inferred {len(mapping)} columns")
-            return mapping
-
-        except Exception as e:
-            logger.warning(f"AI-assisted mapping failed: {e}")
-            return {}
-
-    def _build_schema_mapping_prompt(
-        self, source_columns: List[str], sample_data: List[Dict]
-    ) -> str:
-        """Build prompt for schema mapping LLM call."""
-        target_descriptions = {
-            "company": "Facility/business name",
-            "facility_type": "Type of facility (center, family care, etc.)",
-            "address1": "Street address line 1",
-            "address2": "Street address line 2 (apt, suite, etc.)",
-            "city": "City name",
-            "state": "State abbreviation (2-letter)",
-            "zip": "ZIP code (5-digit)",
-            "county": "County name",
-            "phone": "Primary phone number",
-            "phone2": "Secondary phone number",
-            "email": "Email address",
-            "website_address": "Website URL",
-            "first_name": "Contact person first name",
-            "last_name": "Contact person last name",
-            "capacity": "Maximum number of children",
-            "min_age": "Minimum age served (in years)",
-            "max_age": "Maximum age served (in years)",
-            "ages_served": "Original age range description",
-            "license_status": "License status (Active/Inactive/Expired/etc.)",
-            "license_number": "License/credential number",
-            "license_type": "Type of license",
-        }
-
-        prompt = f"""You are a data engineering assistant. Given the following source CSV columns and sample data, map each source column to the most appropriate target column from the standardized schema.
-
-TARGET SCHEMA COLUMNS:
-{chr(10).join(f"- {col}: {desc}" for col, desc in target_descriptions.items())}
-
-SOURCE COLUMNS:
-{chr(10).join(f"- {col}" for col in source_columns)}
-
-SAMPLE DATA (first 3 rows):
-{sample_data[:3]}
-
-Rules:
-- Map each source column to exactly one target column, or mark as "EXCLUDE" if not useful
-- If a source column contains combined data (e.g., full address), mark for special handling with "PARSE_" prefix
-- Return your answer as a JSON object where keys are target columns and values are source columns
-
-Return format:
-{{
-  "mappings": {{
-    "target_column": "source_column",
-    ...
-  }},
-  "confidence": 0.0-1.0,
-  "notes": "any important observations"
-}}"""
-        print("💥" * 10)
-        print(prompt)
-        print("💥" * 10)
-
-        return prompt
-
-    def _parse_llm_mapping_response(self, response: str) -> Dict[str, str]:
-        """Parse LLM response to extract column mappings."""
-        import json
-
-        try:
-            # Try to find JSON in the response
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                return data.get("mappings", {})
-        except json.JSONDecodeError:
-            logger.warning("Could not parse LLM response as JSON")
-
-        return {}
-
-    def _transform_column(
-        self,
-        df: pd.DataFrame,
-        source_col: str,
-        target_col: str,
-        source_config: Optional[SourceConfig],
-    ) -> pd.Series:
-        """Transform a source column to the target format."""
-        if source_col not in df.columns:
-            return pd.Series([None] * len(df))
-
-        values = df[source_col]
-
-        # Apply appropriate normalizer based on target column
-        if target_col == "phone":
-            return values.apply(lambda x: self.normalizers["phone"].normalize(x)[0])
-
-        elif target_col == "state":
-            return values.apply(lambda x: self.normalizers["state"].normalize(x)[0])
-
-        elif target_col == "zip":
-            return values.apply(lambda x: self.normalizers["zip"].normalize(x)[0])
-
-        elif target_col == "license_status":
-            return values.apply(
-                lambda x: self.normalizers["license_status"].normalize(x)[0]
+        cached_data = self.cache_manager.get_schema(schema_fingerprint)
+        if cached_data:
+            logger.info("Using cached  schema (mapping + logic)")
+            return (
+                cached_data.get("mapping", {}),
+                cached_data.get("transformations", {}),
+                cached_data.get("settings", {}),
             )
 
-        elif target_col == "capacity":
-            return values.apply(lambda x: self.normalizers["capacity"].normalize(x)[0])
+        # Generate new  schema
+        logger.info("Generating  schema (mapping + logic) via LLM...")
 
-        elif target_col in ["first_name", "last_name"]:
-            # Handle contact name parsing
-            return values.apply(lambda x: self._extract_name_part(x, target_col))
+        sample_data = df.sample(min(5, len(df))).to_dict(orient="records")
 
-        elif target_col in ["min_age", "max_age", "ages_served"]:
-            return values.apply(lambda x: self._extract_age_part(x, target_col))
+        mapping, transformations, settings, confidence = (
+            self.schema_generator.generate_schema(
+                source_columns=list(df.columns),
+                target_columns=self.TARGET_COLUMNS,
+                sample_data=sample_data,
+                source_config=source_config,
+            )
+        )
 
-        elif target_col in ["address1", "address2", "city"] and source_config:
-            # Check if we need to parse combined address
-            return self._parse_address_column(df, source_col, target_col, source_config)
+        # Cache the result
+        self.cache_manager.save_schema(
+            schema_fingerprint=schema_fingerprint,
+            mapping=mapping,
+            transformations=transformations,
+            settings=settings,
+            source_columns=list(df.columns),
+            confidence=confidence,
+        )
 
-        # Default: return as-is with basic cleaning
-        return values.apply(self._basic_clean)
+        return mapping, transformations, settings
 
-    def _extract_name_part(self, value: Any, part: str) -> Optional[str]:
-        """Extract first or last name from a full name."""
-        result, _ = self.normalizers["name"].normalize(value)
-        return result.get(part)
+    def _get_default_patterns(self) -> Dict[str, List[str]]:
+        """Get default column name patterns from registry."""
+        default_config = self.source_registry.default_config
+        if not default_config or not default_config.column_map:
+            return {}
 
-    def _extract_age_part(self, value: Any, part: str) -> Any:
-        """Extract age-related field."""
-        result, _ = self.normalizers["age"].normalize(value)
-        return result.get(part)
+        # Extract patterns (filter out non-list values)
+        patterns = {}
+        for key, value in default_config.column_map.items():
+            if isinstance(value, list):
+                patterns[key] = value
 
-    def _parse_address_column(
-        self,
-        df: pd.DataFrame,
-        source_col: str,
-        target_part: str,
-        source_config: SourceConfig,
-    ) -> pd.Series:
-        """Parse combined address field into components."""
-        # Check if this source has address parsing configured
-        if source_col in source_config.column_map:
-            target_action = source_config.column_map[source_col]
-            if target_action == "_parse_full_address":
-                return df[source_col].apply(
-                    lambda x: self.normalizers["address"]
-                    .normalize(x)[0]
-                    .get(target_part)
-                )
-
-        # Default: return as-is for address1, None for others
-        if target_part == "address1":
-            return df[source_col].apply(self._basic_clean)
-        return pd.Series([None] * len(df))
-
-    def _basic_clean(self, value: Any) -> Any:
-        """Basic cleaning for string values."""
-        if pd.isna(value):
-            return None
-
-        if isinstance(value, str):
-            # Remove extra whitespace
-            cleaned = " ".join(value.split())
-            # Return None for empty strings
-            return cleaned if cleaned else None
-
-        return value
+        return patterns
 
     def _generate_record_ids(self, df: pd.DataFrame, source_file: Path) -> pd.Series:
         """Generate deterministic record IDs."""
         return pd.Series([f"{source_file.stem}_{i:08d}" for i in range(len(df))])
+
+    def invalidate_schema_cache(self, schema_fingerprint: str):
+        """Invalidate cached data for a specific schema."""
+        self.cache_manager.invalidate_schema(schema_fingerprint)
+
+    def clear_all_caches(self):
+        """Clear all cached mappings and logic."""
+        self.cache_manager.clear_all()
+
+    def get_cache_stats(self) -> Dict:
+        """Get statistics about cached data."""
+        return self.cache_manager.get_cache_stats()

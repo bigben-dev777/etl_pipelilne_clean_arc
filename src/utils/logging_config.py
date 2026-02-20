@@ -1,12 +1,13 @@
 """Structured logging configuration for the ETL pipeline."""
 
-import sys
 import logging
+import sys
 from typing import Optional
 
 # Try to import structlog, fall back to standard logging
 try:
     import structlog
+
     HAS_STRUCTLOG = True
 except ImportError:
     HAS_STRUCTLOG = False
@@ -15,11 +16,11 @@ except ImportError:
 def configure_logging(
     log_level: str = "INFO",
     log_format: str = "structured",
-    log_file: Optional[str] = None
+    log_file: Optional[str] = None,
 ) -> None:
     """
     Configure logging for the ETL pipeline.
-    
+
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         log_format: Format type ("structured" or "simple")
@@ -27,18 +28,18 @@ def configure_logging(
     """
     # Configure standard library logging
     handlers = [logging.StreamHandler(sys.stdout)]
-    
+
     if log_file:
         handlers.append(logging.FileHandler(log_file))
-    
+
     log_format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
+
     logging.basicConfig(
         format=log_format_str,
         level=getattr(logging, log_level.upper()),
         handlers=handlers,
     )
-    
+
     # Configure structlog if available
     if HAS_STRUCTLOG and log_format == "structured":
         structlog.configure(
@@ -51,7 +52,7 @@ def configure_logging(
                 structlog.processors.StackInfoRenderer(),
                 structlog.processors.format_exc_info,
                 structlog.processors.UnicodeDecoder(),
-                structlog.processors.JSONRenderer()
+                structlog.processors.JSONRenderer(),
             ],
             context_class=dict,
             logger_factory=structlog.stdlib.LoggerFactory(),
@@ -62,6 +63,7 @@ def configure_logging(
 
 def get_logger(name: str):
     """Get a configured logger instance."""
+    logging.basicConfig(level=logging.INFO)
     if HAS_STRUCTLOG:
         return structlog.get_logger(name)
     return logging.getLogger(name)

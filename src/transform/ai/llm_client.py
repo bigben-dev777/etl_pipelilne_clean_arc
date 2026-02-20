@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional
@@ -30,7 +29,9 @@ except ImportError:
     HAS_GEMINI = False
 
 
-logger = logging.getLogger(__name__)
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMProvider(ABC):
@@ -63,15 +64,22 @@ class OpenAIProvider(LLMProvider):
 
     def complete(self, prompt: str, max_tokens: int = 4000, **kwargs) -> str:
         """Send completion request to OpenAI."""
+        logger.info(f"🌐 Call OpenAI with model {self.model}")
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=self.temperature,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
             **kwargs,
         )
 
         self.total_tokens += response.usage.total_tokens
+        logger.info(
+            f"🚀    {self.client._base_url} - {self.model} - {self.temperature}"
+        )
+        logger.info(
+            f"🚀    OpenAI call successful: {response.usage.total_tokens} tokens used"
+        )
 
         return response.choices[0].message.content
 
@@ -84,7 +92,7 @@ class OpenAIProvider(LLMProvider):
             return len(encoding.encode(text))
         except:
             # Fallback: rough estimate
-            return len(text.split()) * 1.3
+            return int(len(text.split()) * 1.3)
 
 
 class AnthropicProvider(LLMProvider):
@@ -120,7 +128,7 @@ class AnthropicProvider(LLMProvider):
 
     def count_tokens(self, text: str) -> int:
         """Count tokens (rough estimate)."""
-        return len(text.split()) * 1.3
+        return int(len(text.split()) * 1.3)
 
 
 class GeminiProvider(LLMProvider):
@@ -142,11 +150,9 @@ class GeminiProvider(LLMProvider):
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
-            config={
-                "temperature": self.temperature,
-                "max_output_tokens": max_tokens,
-                **kwargs,
-            },
+            config=genai.types.GenerateContentConfig(
+                temperature=self.temperature, max_output_tokens=max_tokens, **kwargs
+            ),
         )
 
         # Token tracking (if usage metadata available)
@@ -156,15 +162,61 @@ class GeminiProvider(LLMProvider):
                 usage, "candidates_token_count", 0
             )
 
+        if response.text == None:
+            return ""
         return response.text
 
     def count_tokens(self, text: str) -> int:
         """Count tokens using Gemini tokenizer if available."""
         try:
             response = self.client.models.count_tokens(model=self.model, contents=text)
-            return response.total_tokens
+
+            if response.total_tokens is None:
+                return 0
+            else:
+                return response.total_tokens
         except Exception:
             return int(len(text.split()) * 1.3)
+
+
+class LocalProvider(LLMProvider):
+    """Local GPT-OSS provider via OpenAI-compatible vLLM."""
+
+    def __init__(
+        self,
+        base_url: str = "http://172.20.1.106:8000/v1",
+        model: str = "Qwen3-4B",
+        temperature: float = 0.0,
+    ):
+        self.client = openai.OpenAI(
+            base_url=base_url,
+            api_key="EMPTY",  # required but ignored
+        )
+        self.model = model
+        self.temperature = temperature
+        self.total_tokens = 0
+
+    def complete(self, prompt: str, max_tokens: int = 3000, **kwargs) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.temperature,
+            max_completion_tokens=max_tokens,
+            **kwargs,
+        )
+        # Remove <think> tags if present in response
+        if hasattr(response, "choices") and response.choices:
+            content = response.choices[0].message.content
+            if "<think>" in content:
+                content = content.split("</think>")[-1].strip()
+                response.choices[0].message.content = content
+        if response.usage:
+            self.total_tokens += response.usage.total_tokens
+
+        return response.choices[0].message.content
+
+    def count_tokens(self, text: str) -> int:
+        return int(len(text.split()) * 1.3)
 
 
 class LLMClient:
@@ -251,6 +303,10 @@ class LLMClient:
             model = model or "gemini-1.5-flash"
             return GeminiProvider(api_key, model, temperature)
 
+        elif provider == "local":
+            model = model or "Qwen3-4B"
+            return LocalProvider(model=model, temperature=temperature)
+
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
@@ -308,6 +364,9 @@ class LLMClient:
         """Call LLM with exponential backoff retry."""
         for attempt in range(max_retries):
             try:
+                if self.provider is None:
+                    raise Exception("LLM provider not initialized")
+
                 return self.provider.complete(prompt, **kwargs)
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -316,6 +375,8 @@ class LLMClient:
                     time.sleep(wait_time)
                 else:
                     raise
+
+        raise Exception("Max retries exceeded")
 
     def batch_complete(
         self, prompts: List[str], batch_size: int = 10, **kwargs

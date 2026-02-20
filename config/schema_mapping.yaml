@@ -2,106 +2,6 @@
 # Maps source column names to target schema columns
 
 sources:
-  # Nevada childcare data (Sheet 1)
-  nevada_childcare:
-    pattern: "*nevada*"
-    column_map:
-      Name: company
-      Credential Type: facility_type
-      Credential Number: license_number
-      Status: license_status
-      Expiration Date: _parse_date
-      Disciplinary Action: _exclude
-      Address: _parse_full_address
-      State: state
-      County: county
-      Phone: phone
-      First Issue Date: _parse_date
-      Primary Contact Name: _parse_contact_name
-      Primary Contact Role: _exclude
-    transformations:
-      facility_type:
-        - "CENTER": "Child Care Center"
-        - "FAMILY CARE": "Family Child Care"
-        - "GROUP CARE": "Group Home"
-        - "ACCOMMODATION": "Other"
-        - "PERMITS": "Other"
-      license_status:
-        - "Active": "Active"
-        - "Inactive": "Inactive"
-        - "Expired": "Expired"
-    
-  # Oklahoma childcare data (Sheet 2)
-  oklahoma_childcare:
-    pattern: "*oklahoma*"
-    column_map:
-      Type License: _parse_license_type
-      Company: company
-      Accepts Subsidy: _exclude
-      Year Round: _exclude
-      Daytime Hours: _exclude
-      Star Level: _exclude
-      Mon: _exclude
-      Tues: _exclude
-      Wed: _exclude
-      Thurs: _exclude
-      Friday: _exclude
-      Saturday: _exclude
-      Sunday: _exclude
-      Primary Caregiver: _parse_contact_name
-      Phone: phone
-      Email: email
-      Address1: address1
-      Address2: address2
-      City: city
-      State: state
-      Zip: zip
-      Subsidy Contract Number: _exclude
-      Total Cap: capacity
-      Ages Accepted 1: _parse_age_column
-      AA2: _parse_age_column
-      AA3: _parse_age_column
-      AA4: _parse_age_column
-      License Monitoring Since: _exclude
-      School Year Only: _exclude
-      Evening Hours: _exclude
-    transformations:
-      facility_type:
-        - "CHILD CARE FAMILY": "Family Child Care"
-        - "CHILD CARE CENTER": "Child Care Center"
-    
-  # Texas childcare data (Sheet 3)
-  texas_childcare:
-    pattern: "*texas*"
-    column_map:
-      Operation: _exclude
-      Agency Number: _exclude
-      Operation Name: company
-      Address: address1
-      City: city
-      State: state
-      Zip: zip
-      County: county
-      Phone: phone
-      Type: facility_type
-      Status: license_status
-      Issue Date: _parse_date
-      Capacity: capacity
-      Email Address: email
-      Facility ID: license_number
-      Monitoring Frequency: _exclude
-      Infant: _parse_age_flag
-      Toddler: _parse_age_flag
-      Preschool: _parse_age_flag
-      School: _parse_age_flag
-    transformations:
-      facility_type:
-        - "Licensed Center - Child Care Program": "Child Care Center"
-        - "Licensed Child-Care Home": "Family Child Care"
-      license_status:
-        - "Full Permit": "Active"
-        - "Permit": "Active"
-
   # Default fallback mapping using fuzzy matching
   default:
     fuzzy_match:
@@ -111,22 +11,14 @@ sources:
     patterns:
       company:
         - "name"
-        - "facility"
-        - "provider"
-        - "operation"
         - "organization"
       phone:
-        - "tel"
-        - "telephone"
-        - "contact"
-        - "mobile"
+        - "phone"
       email:
         - "e-mail"
         - "mail"
       address1:
-        - "street"
-        - "addr"
-        - "location"
+        - "address"
       city:
         - "town"
         - "municipality"
