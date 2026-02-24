@@ -173,7 +173,6 @@ class SchemaMapper:
                 source_columns=list(df.columns),
                 target_columns=self.TARGET_COLUMNS,
                 sample_data=sample_data,
-                source_config=source_config,
             )
         )
 

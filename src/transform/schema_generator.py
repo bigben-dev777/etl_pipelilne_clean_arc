@@ -52,7 +52,6 @@ class SchemaGenerator:
         source_columns: List[str],
         target_columns: List[str],
         sample_data: List[Dict],
-        source_config: Optional[SourceConfig] = None,
     ) -> Tuple[Dict[str, str], Dict, Dict, float]:
         """
         Generate schema including mapping and business logic.
@@ -86,13 +85,11 @@ class SchemaGenerator:
                 )
 
                 # Build prompt
-                config_hints = self._build_config_hints(source_config)
                 prompt = self.prompt_builder.build_prompt(
                     source_columns=source_columns,
                     target_columns=target_columns,
                     sample_data=sample_data,
                     metadata=metadata,
-                    config_hints=config_hints,
                     attempt=attempt,
                 )
 
@@ -138,24 +135,6 @@ class SchemaGenerator:
 
         # Should never reach here, but safety fallback
         return self._fallback_mapping(source_columns, target_columns)
-
-    def _build_config_hints(
-        self, source_config: Optional[SourceConfig]
-    ) -> Optional[str]:
-        """Build configuration hints section from source config."""
-        if not source_config or not source_config.column_map:
-            return None
-
-        hints = {"known_mappings": {}}
-        for key, value in source_config.column_map.items():
-            if isinstance(value, str) and not value.startswith("_"):
-                hints["known_mappings"][key] = value
-
-        if hints["known_mappings"]:
-            hints_json = json.dumps(hints, indent=2)
-            return f"\n**KNOWN CONFIGURATION HINTS:**\n```json\n{hints_json}\n```"
-
-        return None
 
     def _parse_json_response(
         self,

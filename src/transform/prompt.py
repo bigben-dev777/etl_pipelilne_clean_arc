@@ -15,7 +15,6 @@ class SchemaPromptBuilder:
         target_columns: List[str],
         sample_data: List[Dict],
         metadata: str,
-        config_hints: Optional[str],
         attempt: int = 1,
     ) -> str:
         """
@@ -26,7 +25,6 @@ class SchemaPromptBuilder:
             target_columns: List of target column names
             sample_data: Sample rows (as list of dicts)
             metadata: Metadata analysis string
-            config_hints: Optional configuration hints
             attempt: Current attempt number (for retry emphasis)
 
         Returns:
@@ -39,7 +37,6 @@ class SchemaPromptBuilder:
         sample_json = self._safe_json_dumps(sample_data[:10])
 
         # Build config hints section
-        config_section = config_hints if config_hints else ""
 
         prompt = f"""{self.SYSTEM_CONTEXT}
 
@@ -68,8 +65,6 @@ class SchemaPromptBuilder:
 ```
 
 {self.PREPARE_WORK_CONTEXT}
-
-{config_section}
 
 {self.OUTPUT_FORMAT}
 
